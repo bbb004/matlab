@@ -1,0 +1,378 @@
+==============================================================================
+ NI-USRP 2920 / LabVIEW PRACTICAL EXAM CHEAT SHEET
+==============================================================================
+
+Every experiment is broken down into:
+  - Files to open (Sub-VIs used)
+  - Exact parameters to enter (Steps to perform)
+  - What parameter to change
+  - What happens and why
+
+
+------------------------------------------------------------------------------
+ UNIVERSAL ARCHITECTURE (same for Expts 1-5)
+------------------------------------------------------------------------------
+
+Transmitter chain (transmitter.vi):
+  source (key bit sequence [U8]) -> MOD (data symbols [CDB]) -> add control
+  -> pulse shaping
+
+Receiver chain (receiver.vi):
+  matched filter -> synch (offset [I32]) -> channel estimate -> equalize
+  -> strip control -> decode -> error detect (bit-error rate [DBL])
+
+For Expts 6 and 7 (OFDM_transmitter.vi and OFDM_receiver.vi):
+  - Transmitter: adds "OFDM mod" and "Scale energy to compensate for IFFT"
+    (sqrt(N)) after MOD.
+  - Receiver: adds "OFDM strip control" -> "OFDM demod" -> "divide by
+    sqrt(N)" before decode.
+
+
+==============================================================================
+ EXPT 1: DIGITAL MODULATION AND DETECTION TECHNIQUES (M-QAM)
+==============================================================================
+
+Sub-VIs used:
+  - Modulate.vi : maps U8 bits to CDB constellation symbols and sets the
+                  symbol energy.
+  - Decode.vi   : performs Maximum Likelihood detection from CDB symbols to
+                  U8 bits.
+
+Steps to perform:
+  1. Open top_tx.vi and top_rx.vi in LabVIEW.
+
+  2. Set hardware parameters on both:
+       device name        = 192.168.10.2
+       IQ Sampling Rate   = 500k
+       Carrier Frequency  = 915M
+       Active Antenna     = TX1 (on Tx) / RX1 (on Rx)
+       Enabled Channel    = 0
+       Gain               = 0 dB (on Tx) / 12 dB (on Rx)
+
+  3. Set filter and frame parameters:
+       TX Filter          = Root Raised Cos
+       Alpha              = 0.50
+       Filter Length      = 6
+       Samples per Symbol = 4
+       Symbol Rate        = 125k
+
+  4. Run top_tx.vi FIRST and wait until the transmitting LED indicator
+     turns on.
+
+  5. Run top_rx.vi SECOND and view the "Rx Constellation" and "Rx Eye
+     Diagram" tabs.
+
+Parameter to change:
+  - Change "QAM M-ary" across 4, 16 and 32 on both Tx and Rx.
+
+What happens and why:
+  - 4-QAM (2 bits/symbol): shows 4 well-separated corner dots in the
+    constellation and a 2-level, wide-open eye diagram.
+
+  - 16-QAM (4 bits/symbol) and 32-QAM (5 bits/symbol): display a 4x4 grid
+    (16 dots) and 32 tightly packed dots, respectively.
+    Because more bits are packed per symbol (M = 2^b) at the same transmit
+    power, the distance between constellation points shrinks, and the eye
+    diagram splits into multiple crowded vertical amplitude levels. This
+    makes higher-order QAM much more prone to noise and bit errors.
+
+
+==============================================================================
+ EXPT 2: PULSE SHAPING AND MATCHED FILTERING ANALYSIS
+==============================================================================
+
+Sub-VIs used:
+  - pulse_shaping.vi    : oversamples and filters the transmitted symbols.
+  - matched_filtering.vi: applies the matched filter g_rx(t) = g_tx(-t) to
+                          maximize SNR.
+
+Steps to perform:
+  1. Open Simulator.vi (it integrates top_tx.vi and top_rx.vi).
+
+  2. Set TRANSMITTER and RECEIVER:
+       TX/RX oversample factor = 4
+       TX/RX sample rate       = 4M
+       channel model           = AWGN
+       noise power             = -Inf
+
+  3. Set SHARED:
+       modulation type         = QPSK
+       packet length           = 200 bits
+       Training Sequence       = Length 11 Barker Sequence
+       Zero Pad Length         = 8
+       pulse shaping filter    = Root Raised
+       filter length           = 8
+
+  4. Run the VI and open the "Received Eye Diagram" tab.
+
+Parameter to change:
+  - Vary "filter parameter" (roll-off factor alpha) through 0.2, 0.4, 0.6
+    and 0.8 (default is 0.5).
+
+What happens and why:
+  - At alpha = 0.2: the impulse response tails decay slowly, causing heavy
+    waveform ringing/overshoot and a NARROW eye opening.
+
+  - As alpha increases to 0.8: the filter tails decay faster in the time
+    domain, which REDUCES Inter-Symbol Interference (ISI), eliminates
+    overshoot, and produces a much wider, cleaner eye diagram opening over
+    the sampling period (at the cost of using more channel bandwidth).
+
+
+==============================================================================
+ EXPT 3: DEMONSTRATION OF SYNCHRONIZATION (SYMBOL TIMING RECOVERY)
+==============================================================================
+
+Sub-VIs used:
+  - Synchronization.vi, containing:
+      align_MaxEnergy.vi : maximizes the average energy J_approx[k].
+      align_ELgate.vi    : Early-Late Gate algorithm, minimizing J_delta[k].
+
+Steps to perform:
+  1. Open Simulator.vi (or top_tx.vi and top_rx.vi).
+
+  2. Set TRANSMITTER and RECEIVER:
+       TX/RX sample rate       = 20M
+       TX/RX oversample factor = 20
+         (high oversampling M is required for fine timing resolution)
+       channel model           = ISI
+       noise power             = -20 dB (and also -10 dB)
+
+  3. Set SHARED:
+       modulation type         = QPSK
+       packet length           = 500 bits
+       pulse shaping filter    = Root Raised
+       filter parameter        = 0.5
+       filter length           = 8
+
+  4. Under RECEIVER -> synchronization options:
+       Synchronization Method          = Timing Estimation
+       Symbol Timing Recovery Method   = Max Energy
+
+Parameter to change:
+  - Observe "Received Eye Diagram" and "Received Constellation" with symbol
+    timing synchronization active, across ISI channel conditions
+    (noise power = -20 dB vs -10 dB).
+
+What happens and why:
+  - The channel introduces an unknown propagation time delay (tau_d).
+  - The "Max Energy" synchronizer finds the exact sample delay offset
+    (k_hat) where the matched filter output has maximum energy, before
+    downsampling by M = 20. (Display shows estimated offset = 80 or 160.)
+  - This aligns sampling right at the widest point of the eye diagram and
+    locks the QPSK symbols into 4 tight quadrant clusters with
+    average BER = 0.
+
+
+==============================================================================
+ EXPT 4: CHANNEL ESTIMATION AND EQUALIZATION
+==============================================================================
+
+Sub-VIs used:
+  - LLSE.vi     : solves y = Ta via Linear Least Squares to estimate the
+                  channel taps h_hat.
+  - Toeplitz.vi : builds the Toeplitz matrix H_hat inside Equalizer.vi to
+                  compute the FIR equalizer:
+                    f_hat(nd) = (H_hat* H_hat)^-1 H_hat* e(nd)
+
+Steps to perform:
+  1. Open Simulator.vi / receiver.vi and set:
+       Packet length            = 500 bits
+       Modulation               = QPSK
+       Correct Frequency Offset = OFF
+
+  2. SETUP 1 (Narrowband system):
+       Tx sample rate           = 20M
+       Tx oversample factor     = 200
+       Rx sample rate           = 2M
+       Rx oversample factor     = 20
+       Equalizer length         = 1
+       Channel estimate length  = 4
+       Capture time             = 3.5 msec
+
+  3. SETUP 2 (Wideband system):
+       Tx sample rate           = 20M
+       Tx oversample factor     = 4
+       Rx sample rate           = 10M
+       Rx oversample factor     = 2
+       Equalizer length         = 6
+       Channel estimation length= 6
+       Capture time             = 80 usec
+
+Parameter to change:
+  - Compare the AWGN vs ISI channel models.
+  - In the receiver.vi block diagram, rewire the "recovered symbols" wire to
+    tap the signal BEFORE vs AFTER the "equalize" block.
+
+What happens and why:
+  - Before equalization (ISI channel): multipath delay spread causes
+    neighboring QPSK symbols to collide, splitting the 4 ideal points into
+    16 scattered constellation clusters and closing the eye diagram.
+
+  - After equalization: LLSE.vi uses the Length-11 Barker training sequence
+    (N_t >= 2L+1) to estimate the multipath channel. The Least-Squares FIR
+    equalizer acts as an inverse filter:
+        sum over l of f[l] h_hat[n-l]  ~=  delta[n - nd]
+    This collapses the smeared points back into 4 sharp QPSK dots with
+    average BER = 0.
+
+
+==============================================================================
+ EXPT 5: FRAME DETECTION AND FREQUENCY OFFSET CORRECTION
+==============================================================================
+
+Sub-VIs used:
+  - Framedetect.vi / sliding_correlator.vi : finds the start of the frame
+        using training sequence correlation.
+  - Moose.vi : implements the Moose algorithm to estimate and cancel the
+        Carrier Frequency Offset:  f_offset_hat = epsilon_hat / T
+
+Steps to perform:
+  1. Open Simulator.vi (or top_tx.vi and top_rx.vi).
+
+  2. Set:
+       TX sample rate           = 4M
+       TX oversample factor     = 20
+       RX sample rate           = 4M
+       RX oversample factor     = 20
+       Capture time             = 2 msec
+
+  3. Set:
+       Channel estimate length  = 2
+       Equalizer length         = 4
+       Equalizer delay          = -1
+       Packet length            = 500 bits
+       Modulation               = QPSK
+
+  4. Set:
+       Frame Detection Method   = Sliding Correlator
+       Correct Frequency Offset = ON (TRUE)
+
+Parameter to change:
+  - Change "Frequency offset (Hz)" under the Transmitter channel parameters
+    through 0, 30, 60 and 100 Hz.
+
+What happens and why:
+  - Mismatched Tx and Rx local oscillators create a Carrier Frequency
+    Offset (CFO) that continuously rotates the phase of the received
+    symbols.
+
+  - The Sliding Correlator locks onto the Barker sequence to find the exact
+    frame start (estimated offset = 80), while Moose.vi measures the CFO.
+    "Measured Channel Impairments -> freq. offset" reads:
+        -0.15 Hz, 30.71 Hz, 60.26 Hz and 99.48 Hz
+    (for applied offsets of 0, 30, 60 and 100 Hz respectively).
+
+  - As the offset climbs to 60-100 Hz, phase rotation across the packet
+    thickens the eye diagram crossovers and raises the BER
+    (0.378 at 100 Hz).
+
+
+==============================================================================
+ EXPT 6: IMPLEMENTATION OF OFDM MODULATION
+==============================================================================
+
+Sub-VIs used:
+  - OFDM_modulate.vi   : takes the N-point IFFT and prepends the Cyclic
+                         Prefix (Lc).
+  - OFDM_demodulate.vi : strips Lc, takes the N-point FFT, and performs
+                         1-tap Frequency Domain Equalization: Y[k] / H[k].
+
+Steps to perform and parameters to change:
+  1. Open OFDM_simulator.vi (or top_ofdm_tx.vi and top_ofdm_rx.vi).
+
+  2. Set base parameters:
+       Packet length            = 500 bits
+       Modulation               = QPSK
+       Channel estimate length  = 4
+       FFT size (N)             = 64
+       Length of CP (Lc)        = 8
+       Null tones               = {0, 31, 32, 33}
+
+  3. TEST A - Narrowband vs. Wideband channel:
+       Narrowband:
+         TX/RX sample rate        = 4M
+         TX/RX oversample factor  = 20
+         Capture time             = 2.4 msec
+       Wideband:
+         TX sample rate           = 20M
+         TX oversample factor     = 4
+         RX sample rate           = 10M
+         RX oversample factor     = 2
+         Capture time             = 100 usec
+
+  4. TEST B - Frequency offset and subcarrier count (N):
+       TX rate                  = 20M
+       TX OSF                   = 20
+       RX rate                  = 4M
+       RX OSF                   = 4
+       Capture time             = 500 usec
+       Frequency offset         = 200 Hz (increase in steps of 200 Hz)
+
+     Compare:
+       (a) FFT Size (N) = 64,   Lc = 8,   Nulls = {0, 31, 32, 33}
+       (b) FFT Size (N) = 1024, Lc = 32,  Nulls = {0, 511, 512, 513}
+
+What happens and why:
+  - Narrowband vs. Wideband:
+    The Cyclic Prefix (Lc >= Lh) prevents ISI between OFDM symbols and
+    converts linear convolution into circular convolution. This allows the
+    wideband multipath channel to be equalized by a simple 1-tap complex
+    division Y[k] / H[k] in the frequency domain (Equalize Channel = ON).
+
+  - Frequency offset (200 Hz) and N = 64 vs. N = 1024:
+    Frequency offset shifts the subcarriers off their orthogonal grid,
+    causing Inter-Carrier Interference (ICI) that scatters the QPSK
+    constellation into a random cloud.
+    Because N = 1024 packs 16 times more subcarriers into the same
+    bandwidth than N = 64, the subcarrier spacing is 16 times narrower, so
+    the same 200 Hz offset causes much worse ICI and a higher BER in the
+    N = 1024 system.
+
+
+==============================================================================
+ EXPT 7: CHANNEL CODING IN OFDM SYSTEMS
+==============================================================================
+
+Sub-VIs used:
+  - repeat_encoder.vi : rate 1/3 repetition block code (repeats each bit
+                        3 times).
+  - repeat_decoder.vi : majority-vote decoder.
+
+Steps to perform:
+  1. Open OFDM_simulator.vi.
+
+  2. Set:
+       TX/RX sample rate        = 20M
+       TX/RX oversample factor  = 4
+       channel model            = AWGN
+       noise power (dB)         = -10
+
+  3. Set:
+       modulation type          = QPSK
+       packet length            = 500 bits
+       # of iterations          = 10
+       FFT size (N)             = 64
+       Length of CP (Lc)        = 8
+       Null Tones               = {0, 31, 32, 33}
+       Equalize Channel         = ON
+
+Parameter to change:
+  - Toggle the "Channel Coding Enabled" switch on the SHARED panel from
+    OFF to ON.
+
+What happens and why:
+  - When OFF: high channel noise (-10 dB) causes individual subcarrier
+    symbol errors to directly become bit errors
+    (error statistic = 0.08, average BER = 0.072).
+
+  - When ON: each source bit is transmitted 3 times (r = n - k redundant
+    bits). Even though the physical QPSK constellation and eye diagram
+    still look noisy, the majority-vote decoder corrects single-bit errors
+    in any 3-bit block, lowering the average BER (to 0.025) and providing
+    CODING GAIN (reducing the transmit power needed to achieve a target
+    BER).
+
+==============================================================================
+ END OF CHEAT SHEET
+==============================================================================
