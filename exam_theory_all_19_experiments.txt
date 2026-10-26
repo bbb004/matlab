@@ -1,0 +1,455 @@
+==============================================================================
+ LAB EXAM THEORY GUIDE - ALL 19 EXPERIMENTS (USRP, MATLAB & OPTICAL FIBER)
+==============================================================================
+
+Contents:
+  PART 1: NI-USRP 2920 (LabVIEW) Theory ............ Expts 1-7
+  PART 2: MATLAB Simulation Theory ................. Expts 1-7
+  PART 3: Optical Fiber Hardware Theory ............ Expts 1-5
+
+
+##############################################################################
+ PART 1: NI-USRP 2920 (LabVIEW) THEORY (EXPTS 1-7)
+##############################################################################
+
+
+------------------------------------------------------------------------------
+ USRP EXPT 1: Performance Analysis of Digital Modulation and Detection
+              Techniques (M-QAM)
+------------------------------------------------------------------------------
+
+THEORY:
+  Digital modulation maps discrete binary bit sequences onto the amplitude
+  and phase of a high-frequency analog carrier signal. In M-ary Quadrature
+  Amplitude Modulation (M-QAM), two orthogonal carriers—In-phase (I) and
+  Quadrature (Q)—are amplitude-modulated simultaneously. Each symbol
+  represents b = log2(M) bits.
+
+  As the modulation order M increases (from 4-QAM to 16-QAM and 32-QAM),
+  spectral efficiency (bits/s/Hz) increases. However, for a fixed average
+  transmit power, packing more constellation points into the I-Q plane
+  reduces the minimum Euclidean distance (d_min) between adjacent points.
+  Consequently, higher-order QAM requires a higher Signal-to-Noise Ratio
+  (SNR) to maintain a low Bit Error Rate (BER) and displays more vertical
+  amplitude levels in the eye diagram.
+
+
+------------------------------------------------------------------------------
+ USRP EXPT 2: Pulse Shaping and Matched Filtering Analysis
+------------------------------------------------------------------------------
+
+THEORY:
+  Transmitting rectangular pulses requires infinite bandwidth. When passed
+  through a band-limited wireless channel, rectangular pulses spread in the
+  time domain, causing adjacent symbols to overlap—a distortion known as
+  Inter-Symbol Interference (ISI).
+
+  To satisfy the Nyquist zero-ISI criterion while conserving bandwidth, the
+  overall Raised Cosine filter response is split equally between a Root
+  Raised Cosine (RRC) pulse-shaping filter at the transmitter and a matching
+  RRC filter (Matched Filter) at the receiver. The cascaded response ensures
+  that the pulse tails cross zero at exact integer multiples of the symbol
+  period T_s, maximizing the SNR at the sampling instant. The roll-off
+  factor alpha (0 <= alpha <= 1) controls the excess bandwidth. Increasing
+  alpha widens the vertical eye opening and reduces time-domain sidelobe
+  ringing.
+
+
+------------------------------------------------------------------------------
+ USRP EXPT 3: Demonstration of Synchronization (Symbol Timing Recovery)
+------------------------------------------------------------------------------
+
+THEORY:
+  When a signal travels over a wireless channel, propagation delay (tau_d)
+  causes an unknown timing offset between the transmitter symbol clock and
+  the receiver sampling clock. Sampling away from the optimal peak of the
+  matched filter output introduces severe ISI and degrades the SNR.
+
+  To recover symbol timing, the received baseband signal is oversampled by a
+  factor M (e.g., M = 20 samples per symbol). The synchronization block
+  evaluates the energy across all M polyphase sampling branches over an
+  observation window and selects the optimal sampling phase k_hat that
+  maximizes the average output energy (corresponding to the widest vertical
+  eye opening). Downsampling the signal at index k_hat restores clean
+  constellation clusters.
+
+
+------------------------------------------------------------------------------
+ USRP EXPT 4: Implementation of Channel Estimation and Equalization
+------------------------------------------------------------------------------
+
+THEORY:
+  A multipath frequency-selective channel acts as a Finite Impulse Response
+  (FIR) filter that smears transmitted symbols across multiple symbol
+  durations, scattering a 4-point QPSK constellation into multiple clusters.
+
+  To estimate the unknown channel impulse response h, the transmitter sends
+  a known training sequence t of length N_t. By arranging the training
+  symbols into a Toeplitz convolution matrix T, the receiver computes the
+  Least-Squares (LS) channel estimate. The training sequence must be
+  persistently exciting (random-like with sharp autocorrelation) and satisfy
+  N_t >= 2L + 1 so that T^H * T is full rank and invertible. Using the same
+  LS formulation, an FIR equalizer w is designed to invert the channel
+  distortion and restore the original QPSK constellation.
+
+
+------------------------------------------------------------------------------
+ USRP EXPT 5: Implementation of Frame Detection and Frequency Offset
+              Correction
+------------------------------------------------------------------------------
+
+THEORY:
+  In asynchronous packet transmission, the receiver must determine the exact
+  starting sample of an incoming frame and compensate for Carrier Frequency
+  Offset (CFO) caused by local oscillator mismatches between the transmitter
+  and receiver. Uncompensated CFO causes a continuous phase rotation
+  (2*pi*delta_f*t), spinning the received constellation.
+
+  Frame detection is achieved using a sliding correlator matched to a known
+  Barker sequence (which possesses sharp peak autocorrelation and minimal
+  sidelobes). Once the frame start is found, the Moose algorithm estimates
+  the CFO using two identical, consecutive training halves of length N_t. By
+  computing the phase angle of the complex correlation between the first and
+  second training halves, the frequency offset delta_f_hat is estimated and
+  removed via complex derotation.
+
+
+------------------------------------------------------------------------------
+ USRP EXPT 6: Implementation of OFDM Modulation
+------------------------------------------------------------------------------
+
+THEORY:
+  Orthogonal Frequency Division Multiplexing (OFDM) converts a single
+  high-rate frequency-selective wideband channel into N parallel, orthogonal,
+  flat-fading narrowband subcarriers using an N-point Inverse Fast Fourier
+  Transform (IFFT) at the transmitter and an FFT at the receiver.
+
+  Prepending a Cyclic Prefix (CP) of length L_c >= L_h (where L_h is the
+  channel delay spread) absorbs inter-symbol interference (ISI) and converts
+  the linear convolution of the multipath channel into circular convolution.
+  This allows simple 1-tap frequency-domain equalization (dividing each
+  subcarrier by its complex channel gain H[k]). However, OFDM is highly
+  sensitive to Carrier Frequency Offset (CFO), which destroys subcarrier
+  orthogonality and introduces Inter-Carrier Interference (ICI). Larger FFT
+  sizes (e.g., N = 1024 vs. N = 64) have narrower subcarrier spacing
+  (delta_f = B / N), making them more vulnerable to a fixed CFO.
+
+
+------------------------------------------------------------------------------
+ USRP EXPT 7: Channel Coding in OFDM Systems
+------------------------------------------------------------------------------
+
+THEORY:
+  In an uncoded OFDM system operating over a frequency-selective multipath
+  channel, subcarriers that fall into deep spectral nulls experience severe
+  SNR degradation, dominating the overall Bit Error Rate (BER).
+
+  To exploit the frequency diversity inherent in the multipath channel,
+  Forward Error Correction (FEC) coding (such as convolutional or block
+  coding) is combined with bit interleaving across subcarriers. The encoder
+  introduces structured redundancy (code rate R_c = k / n), while the
+  interleaver separates adjacent coded bits onto distant subcarriers so that
+  a deep fade bursts errors across independent codewords rather than
+  overwhelming a single codeword. At high SNR, the coded OFDM system achieves
+  a horizontal SNR advantage over the uncoded system known as Coding Gain.
+
+
+##############################################################################
+ PART 2: MATLAB SIMULATION THEORY (EXPTS 1-7)
+##############################################################################
+
+
+------------------------------------------------------------------------------
+ MATLAB EXPT 1: Simulation of Large-Scale and Small-Scale Fading + Link Budget
+                (Exp1_Large_And_Small_Scale_Fading.m)
+------------------------------------------------------------------------------
+
+THEORY:
+  Wireless propagation models are classified into large-scale and small-scale
+  fading:
+  1. Large-Scale Propagation Models predict average signal power attenuation
+     over large transmitter-receiver separation distances (d):
+     - Free-Space Path Loss (Friis Model) assumes unobstructed line-of-sight
+       (LOS) propagation where power decays inversely with d^2.
+     - Log-Distance Path Loss generalizes attenuation to practical
+       environments using the path-loss exponent n (n = 2 for free space,
+       n = 3 to 6 for urban/obstructed buildings).
+     - Log-Normal Shadowing accounts for random surrounding clutter by
+       adding a zero-mean Gaussian random variable X_sigma (in dB) with
+       standard deviation sigma to the log-distance model.
+  2. Link Budget calculates the received power P_r (in dBm) after accounting
+     for transmit power, antenna gains, system losses, and path loss. The
+     difference between P_r and the receiver sensitivity threshold is the
+     Fade Margin.
+  3. Small-Scale Fading describes rapid amplitude fluctuations over short
+     distances due to constructive and destructive multipath interference:
+     - Rayleigh Fading models non-line-of-sight (NLOS) scattering using the
+       magnitude of a zero-mean complex Gaussian process.
+     - Rician Fading models a dominant stationary LOS component combined
+       with scattered multipath components, parameterized by the Rician
+       K-factor (ratio of LOS power to scattered power).
+
+
+------------------------------------------------------------------------------
+ MATLAB EXPT 2: Study of Receive Diversity Concepts (SC, MRC and EGC)
+                (Exp2_Diversity_Combining.m)
+------------------------------------------------------------------------------
+
+THEORY:
+  Receive spatial diversity mitigates multipath deep fades by equipping the
+  receiver with L independent antennas. The probability that all L branches
+  simultaneously experience a deep fade decays as (1 / SNR)^L. The received
+  signal on branch i is r_i = h_i*s + n_i. Three linear combining techniques
+  are used:
+  1. Selection Combining (SC): Monitors the instantaneous SNR on all L
+     branches and selects only the single branch with the maximum channel
+     magnitude |h_i|^2. It requires the simplest hardware but ignores energy
+     from the remaining L - 1 branches.
+  2. Equal Gain Combining (EGC): Co-phases all L branches by multiplying each
+     branch by exp(-j*angle(h_i)) and sums them with equal unit amplitude
+     weights.
+  3. Maximal Ratio Combining (MRC): Weights each branch by the complex
+     conjugate of its channel gain (w_i = h_i*), simultaneously co-phasing
+     the signals and weighting them proportionally to their strength. MRC
+     maximizes the post-combining output SNR (gamma_MRC = sum gamma_i) and
+     achieves the lowest BER (MRC > EGC > SC).
+
+
+------------------------------------------------------------------------------
+ MATLAB EXPT 3: Study of Transmit Diversity (Alamouti Scheme)
+                (Exp3_Alamouti_Rician.m)
+------------------------------------------------------------------------------
+
+THEORY:
+  The Alamouti scheme is an orthogonal Space-Time Block Code (STBC) that
+  achieves full transmit diversity order (2*N_r) using N_t = 2 transmit
+  antennas and N_r receive antennas without requiring Channel State
+  Information at the Transmitter (CSIT).
+
+  Two modulated symbols (s_1, s_2) are transmitted across two consecutive
+  time slots, assuming the fading channel gains (h_1, h_2) remain constant
+  over the two-slot block:
+  - In Time Slot 1: Antenna 1 transmits s_1, Antenna 2 transmits s_2.
+  - In Time Slot 2: Antenna 1 transmits -s_2*, Antenna 2 transmits s_1*.
+  Total transmit power per slot is normalized by dividing each symbol by
+  sqrt(2). Because the code matrix is orthogonal, the receiver decouples s_1
+  and s_2 using simple linear combining without matrix inversion.
+
+
+------------------------------------------------------------------------------
+ MATLAB EXPT 4: Simulation of MIMO System - Spatial Multiplexing and
+                Interference Cancellation (Exp4_MIMO_ZF_MMSE_ML.m)
+------------------------------------------------------------------------------
+
+THEORY:
+  In a V-BLAST Spatial Multiplexing MIMO system (N_t = 2, N_r = 2),
+  independent symbol streams are transmitted simultaneously from each
+  antenna to multiply data throughput by N_t. The received vector is
+  y = H*s + n, where inter-stream interference occurs between antennas:
+  1. Zero-Forcing with Successive Interference Cancellation (ZF-SIC):
+     Computes the Moore-Penrose pseudoinverse W_ZF = (H^H * H)^(-1) * H^H to
+     null interference completely, but suffers from noise enhancement when H
+     is ill-conditioned.
+  2. Minimum Mean Square Error with SIC (MMSE-SIC): Regularizes the matrix
+     inversion with noise variance N_0 (W_MMSE = (H^H*H + N_0*I)^(-1)*H^H),
+     balancing interference suppression and noise amplification.
+     In both SIC schemes, the stream with the smallest post-detection noise
+     norm is detected first, re-modulated, and subtracted from y (y_rest =
+     y - h_1*s_hat_1) before detecting the remaining stream.
+  3. Maximum Likelihood (ML) Detector: Performs an exhaustive search over
+     all M^(N_t) candidate symbol vectors C, selecting the vector that
+     minimizes Euclidean distance ||y - H*s||^2. ML achieves optimal BER and
+     full diversity order, followed by MMSE-SIC and ZF-SIC.
+
+
+------------------------------------------------------------------------------
+ MATLAB EXPT 5: Implementation of IEEE 802.11n Standard (PHY Layer PER)
+                (Exp5_WLAN_80211n_PER.m)
+------------------------------------------------------------------------------
+
+THEORY:
+  The IEEE 802.11n standard combines MIMO spatial multiplexing with OFDM to
+  achieve high throughput in indoor wireless local area networks (WLANs).
+  Each transmitted HT packet (PPDU) contains structured preamble fields
+  followed by the data payload (PSDU):
+  1. L-STF (Legacy Short Training Field): Used at the receiver for coarse
+     packet detection (wlanPacketDetect) and coarse Carrier Frequency Offset
+     estimation (wlanCoarseCFOEstimate).
+  2. L-LTF (Legacy Long Training Field): Used for fine symbol timing
+     synchronization (wlanSymbolTimingEstimate) and fine CFO correction
+     (wlanFineCFOEstimate).
+  3. HT-LTF (High-Throughput Long Training Field): Orthogonal training
+     symbols transmitted across all spatial streams to estimate the MIMO
+     subcarrier channel matrix H (wlanHTLTFChannelEstimate).
+  4. HT-Data: Carries the Binary Convolutional Coded (BCC) payload, which is
+     equalized and decoded using H and the noise variance (wlanHTDataRecover).
+  A packet error is recorded whenever one or more bits in the recovered PSDU
+  differ from the transmitted PSDU, or when packet synchronization fails.
+
+
+------------------------------------------------------------------------------
+ MATLAB EXPT 6: IEEE 802.11n MIMO TGn Channel Analysis (All 3 Parts)
+                (Exp6_TGn_Channel_All_Parts.m)
+------------------------------------------------------------------------------
+
+THEORY:
+  1. Spatial Mapping (Part 1): When the number of transmit antennas (N_t = 4)
+     exceeds the number of space-time streams (N_sts = 2), a spatial mapping
+     matrix Q (such as a Fourier orthogonal matrix) maps the streams across
+     all transmit antennas. Passing the waveform through wlanTGnChannel
+     introduces frequency-selective multipath fading visible on a Spectrum
+     Analyzer.
+  2. MIMO Channel Estimation & Recovery (Part 2): Over a 40 MHz bandwidth
+     (CBW40, sampling rate 40 MHz), demodulating the received HT-LTF field
+     yields the complex channel matrix estimate H_hat, enabling zero-forcing
+     or MMSE equalization of the HT-Data symbols.
+  3. Random Stream Repeatability (Part 3): Stochastic channel models rely on
+     pseudorandom number generators (PRNGs). When RandomStream is set to
+     'Global stream', calling reset() still draws new random values from
+     MATLAB's advancing global state, yielding independent channel fades
+     (isequal = false). Setting RandomStream to 'mt19937ar with seed' with a
+     fixed seed (e.g., Seed = 73) re-initializes the local Mersenne Twister
+     generator upon reset(), guaranteeing identical channel realizations
+     (isequal = true) for reproducible receiver benchmarking.
+
+
+------------------------------------------------------------------------------
+ MATLAB EXPT 7: Simulation of IEEE 802.16 WiMAX (SUI-1) MIMO Multipath
+                Fading Channel (Exp7_SUI1_MIMO_Channel.m)
+------------------------------------------------------------------------------
+
+THEORY:
+  The Stanford University Interim (SUI-1) channel model characterizes fixed
+  broadband wireless access (IEEE 802.16 WiMAX) in flat terrain with light
+  tree density. It is modeled as a tapped-delay-line filter with three
+  discrete multipath taps (delays [0, 0.4, 0.9] us and average path gains
+  [0, -15, -20] dB) following a Rician distribution (K = 4).
+
+  Unlike mobile cellular channels that exhibit a U-shaped Jakes/Clarke
+  Doppler spectrum, fixed wireless channels experience Doppler spread
+  primarily from wind-blown foliage, modeled by a 'Rounded' polynomial
+  Doppler spectrum bounded within [-f_d, +f_d] (f_d = 0.5 Hz). Furthermore,
+  insufficient physical spacing between transmit antennas introduces spatial
+  correlation (specified via a 2x2 TransmitCorrelationMatrix with off-
+  diagonal coefficient rho = 0.7), causing the fading envelopes of the two
+  transmit links to fluctuate in a correlated manner.
+
+
+##############################################################################
+ PART 3: OPTICAL FIBER HARDWARE THEORY (EXPTS 1-5)
+##############################################################################
+
+
+------------------------------------------------------------------------------
+ OPTICAL EXPT 1: Measurement of Connector and Bending Loss of Optical Fiber
+------------------------------------------------------------------------------
+
+THEORY:
+  Light propagates through an optical fiber core via Total Internal
+  Reflection (TIR) as long as the angle of incidence at the core-cladding
+  interface exceeds the critical angle theta_c = arcsin(n_2 / n_1).
+
+  1. Macrobending Loss: When an optical fiber is bent into a tight loop of
+     small diameter, the local angle of incidence of guided rays at the
+     outer bend wall falls below the critical angle theta_c. Consequently,
+     evanescent field energy radiates out into the cladding, causing optical
+     power (and detected output voltage V_out) to drop sharply below a
+     critical bend radius.
+  2. Connector Coupling Loss: When two fiber ends are separated by a
+     longitudinal air gap, the cone of light emerging from the transmitting
+     fiber diverges according to its Numerical Aperture. As separation
+     distance increases, a smaller fraction of the emitted light cone falls
+     within the core area of the receiving fiber, causing an exponential
+     decay in coupled power.
+
+
+------------------------------------------------------------------------------
+ OPTICAL EXPT 2: Attenuation Measurement of Fiber
+------------------------------------------------------------------------------
+
+THEORY:
+  As an optical signal propagates along an optical fiber, its optical power
+  decays exponentially with distance according to Beer-Lambert's Law. This
+  intrinsic signal attenuation is caused by three primary physical
+  mechanisms:
+  1. Material Absorption: Intrinsic absorption by silica glass molecules and
+     extrinsic absorption by trace metal or OH^- water-ion impurities.
+  2. Rayleigh Scattering: Microscopic fluctuations in glass density and
+     refractive index (smaller than the optical wavelength lambda) scatter
+     light in all directions proportional to 1 / lambda^4.
+  3. Waveguide Imperfections: Microbending and core-cladding interface
+     irregularities.
+  By measuring the photodetector output voltages V_1 and V_2 for two fiber
+  lengths L_1 and L_2 under identical launch conditions, connector coupling
+  losses cancel out and the attenuation coefficient alpha (in dB/m or Np/m)
+  is obtained.
+
+
+------------------------------------------------------------------------------
+ OPTICAL EXPT 3: Numerical Aperture Determination of Optical Fiber
+------------------------------------------------------------------------------
+
+THEORY:
+  The Numerical Aperture (NA) of an optical fiber is a dimensionless number
+  that measures the light-gathering ability of the fiber core. It is defined
+  as the sine of the maximum acceptance half-angle (theta_a) within which an
+  incident ray entering from air into the fiber core will be trapped and
+  guided via Total Internal Reflection (TIR).
+
+  Rays entering at an angle greater than theta_a strike the core-cladding
+  boundary at less than the critical angle and refract out into the cladding.
+  Experimentally, light exiting the fiber projects a circular spot of radius
+  x onto a screen placed at a distance d from the fiber tip. By divergence
+  symmetry, the exit cone half-angle equals the acceptance half-angle
+  theta_a.
+
+
+------------------------------------------------------------------------------
+ OPTICAL EXPT 4: Study of Cylindrical Mode Step Index / Graded Index Fiber
+                 (LP Modes)
+------------------------------------------------------------------------------
+
+THEORY:
+  An optical fiber is a cylindrical dielectric waveguide. Light propagating
+  along the core forms discrete electromagnetic field distributions (standing
+  wave patterns across the cross-section) that satisfy Maxwell's equations
+  and boundary conditions, known as Guided Modes. Under the weakly guiding
+  approximation (n_1 ~= n_2), these modes are designated as Linearly
+  Polarized (LP_{lm}) modes, where l is the azimuthal index (half the number
+  of bright lobes in a ring) and m is the radial index (number of concentric
+  rings).
+
+  The number of guided modes is governed by a dimensionless parameter called
+  the Normalized Frequency or V-number. If V < 2.405, the fiber supports
+  only the fundamental LP_01 mode (Single-Mode Fiber). For V > 2.405, the
+  fiber operates as a Multimode Fiber supporting higher-order modes such as
+  LP_11, LP_21, and LP_02, which can be selectively excited by adjusting the
+  laser launch angle.
+
+
+------------------------------------------------------------------------------
+ OPTICAL EXPT 5: Study of Fiber Optic Analog and Digital Link
+------------------------------------------------------------------------------
+
+THEORY:
+  A complete optical fiber communication link consists of an electrical-to-
+  optical (E/O) transmitter (Laser Diode or LED operating at 1310 nm), an
+  optical fiber waveguide, and an optical-to-electrical (O/E) receiver
+  (PIN or Avalanche Photodiode coupled with a transimpedance amplifier).
+
+  1. Analog Link: An input sinusoidal signal modulates the drive current of
+     the laser diode around a DC bias point (Intensity Modulation). At the
+     receiver, the photodiode converts the optical intensity variations back
+     into an electrical sine wave. Sweeping the input frequency allows
+     measurement of the frequency response and the 3 dB cutoff bandwidth
+     (f_3dB), where voltage gain drops by 3 dB (or to 1/sqrt(2) = 0.707 of
+     its mid-band value).
+  2. Digital Link: A TTL square wave switches the optical source between ON
+     (logic 1) and OFF (logic 0) states (On-Off Keying). The receiver
+     comparator reconstructs the digital pulse train, preserving the pulse
+     width (T_ON), space width (T_OFF), and percentage duty cycle.
+
+
+==============================================================================
+ END OF DOCUMENT
+==============================================================================
