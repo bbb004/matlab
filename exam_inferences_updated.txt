@@ -1,0 +1,469 @@
+==============================================================================
+ EXAM INFERENCES - ALL EXPERIMENTS (USRP, MATLAB & OPTICAL FIBER)
+==============================================================================
+
+Contents:
+  PART 1: NI-USRP 2920 (LabVIEW) Inferences ........ Expts 1-7
+  PART 2: MATLAB Simulation Inferences ............. Expts 1-7
+  PART 3: Optical Fiber Hardware Inferences ........ Expts 1-5
+
+Each experiment has an "Inference to write" paragraph. Most also have a
+"Parameter observation" paragraph that describes what changes when the main
+parameter is varied or what key metric is observed.
+
+
+##############################################################################
+ PART 1: NI-USRP 2920 (LabVIEW) INFERENCES (EXPTS 1-7)
+##############################################################################
+
+
+------------------------------------------------------------------------------
+ USRP EXPT 1: Performance Analysis of Digital Modulation and Detection
+              Techniques
+------------------------------------------------------------------------------
+
+Inference to write:
+
+  In this experiment, we studied the performance of digital modulation
+  techniques using LabVIEW and USRP-2920. We infer that when a signal
+  propagates through the wireless channel, it will be affected by the noise
+  and other types of distortions in the channel. Hence, we conclude that the
+  type of distortions impacts the receiver's architecture and the design of
+  the digital signal processing algorithm.
+
+Parameter observation (4-QAM vs 16-QAM vs 32-QAM):
+
+  As the modulation order M increases from 4-QAM to 16-QAM and 32-QAM, more
+  bits are mapped per symbol (M = 2^b), which reduces the Euclidean distance
+  between adjacent constellation points and increases the number of vertical
+  amplitude levels in the eye diagram, making higher-order QAM more
+  susceptible to noise.
+
+
+------------------------------------------------------------------------------
+ USRP EXPT 2: Pulse Shaping and Matched Filtering Analysis
+------------------------------------------------------------------------------
+
+Inference to write:
+
+  In this experiment, we studied the performance of pulse shaping and
+  matched filtering using LabVIEW and NI-USRP 2920. From the results, we
+  infer that the effect of pulse shaping and matched filtering results in
+  less inter-symbol interference, which is witnessed from the opening of the
+  eye in the eye diagram, revealing the period over which the received
+  waveform is sampled successfully. In addition, the distortion of the
+  signal in the diagram indicates various qualitative metrics such as the
+  variation of zero crossings or distortion related to the SNR.
+
+Parameter observation (alpha = 0.2, 0.4, 0.6, 0.8):
+
+  Increasing the Root Raised Cosine roll-off factor alpha from 0.2 to 0.8
+  widens the vertical eye opening and reduces waveform ringing and
+  inter-symbol interference (ISI) at the sampling instant.
+
+
+------------------------------------------------------------------------------
+ USRP EXPT 3: Demonstration of Synchronization (Symbol Timing Recovery)
+------------------------------------------------------------------------------
+
+Inference to write:
+
+  In this experiment, we studied the performance of symbol timing
+  synchronization techniques using LabVIEW and NI-USRP 2920. We infer that a
+  realistic frequency-flat wireless channel introduces attenuation, phase
+  shifts, and propagation delay (tau_d). By applying the Maximum Energy or
+  Early-Late Gate synchronization algorithm with a large oversampling factor
+  (M = 20), the receiver accurately estimates the discrete timing offset
+  (k_hat) prior to downsampling, resulting in an open eye diagram and
+  tightly clustered QPSK constellation points with zero BER.
+
+
+------------------------------------------------------------------------------
+ USRP EXPT 4: Implementation of Channel Estimation and Equalization
+------------------------------------------------------------------------------
+
+Inference to write:
+
+  In this experiment, we studied the performance of channel estimation and
+  equalization using LabVIEW and NI-USRP. The least squares technique is the
+  simplest, and an added advantage of the least squares estimator is that in
+  AWGN, the least squares estimator is also the maximum likelihood
+  estimator. Generally, choosing the length of the training sequence much
+  larger than the length of the channel (N_t >= 2L+1) gives better
+  performance, and the full rank condition can be guaranteed by ensuring
+  that the training sequence is persistently exciting and that it looks
+  random enough. Random training sequences perform well while the constant
+  training sequence fails. Furthermore, it is observed that training
+  sequences with good correlation properties generally satisfy this
+  requirement.
+
+Parameter observation (before vs. after equalizer):
+
+  Prior to equalization in an ISI channel, multipath delay spread scatters
+  the QPSK constellation into 16 clusters; after applying the Toeplitz
+  Least-Squares FIR equalizer, inter-symbol interference is removed and the
+  4 clean QPSK constellation points are restored.
+
+
+------------------------------------------------------------------------------
+ USRP EXPT 5: Implementation of Frame Detection and Frequency Offset
+              Correction
+------------------------------------------------------------------------------
+
+Inference to write:
+
+  In this experiment, we studied frame detection and carrier frequency
+  offset correction using LabVIEW and NI-USRP 2920. We infer that due to
+  propagation delays and oscillator mismatches between the transmitter and
+  receiver, both the start of the frame and the carrier frequency offset
+  must be resolved prior to channel estimation and equalization. The sliding
+  correlator accurately detects the Barker training sequence to resolve
+  multi-symbol frame offsets, while the Moose algorithm estimates and
+  corrects carrier frequency offsets (tested from 0 Hz to 100 Hz) to prevent
+  constellation phase rotation.
+
+
+------------------------------------------------------------------------------
+ USRP EXPT 6: Implementation of OFDM Modulation
+------------------------------------------------------------------------------
+
+Inference to write:
+
+  In this experiment, we carried out the implementation of the OFDM
+  multi-carrier modulation technique using LabVIEW and NI-USRP 2920. From
+  the results, we examined the frequency selectivity of the wireless channel
+  and explored when it might be advantageous to use OFDM to forego the
+  complexities of linear equalization. Furthermore, we observed the impact
+  of the frequency offset, which causes the shift in the frequency, leading
+  to what is known as inter-carrier interference.
+
+Parameter observation (N = 64 vs. N = 1024 with 200 Hz offset):
+
+  Prepending a cyclic prefix (L_c >= L_h) converts linear channel
+  convolution into circular convolution, enabling simple 1-tap
+  frequency-domain equalization (Y[k] / H[k]). Introducing a 200 Hz carrier
+  frequency offset destroys orthogonality between subcarriers and scatters
+  the constellation, with the N = 1024 system degrading more severely than
+  N = 64 due to narrower subcarrier spacing.
+
+
+------------------------------------------------------------------------------
+ USRP EXPT 7: Channel Coding in OFDM Systems
+------------------------------------------------------------------------------
+
+Inference to write:
+
+  In this experiment, we carried out the implementation of the channel
+  coding in OFDM multi-carrier modulation using LabVIEW and NI-USRP 2920. We
+  infer that for OFDM systems to fully utilize their potential for
+  high-data-rate communication in frequency-selective (ISI) channels, they
+  must take advantage of the diversity inherent to frequency-selective
+  channels, making use of channel coding and interleaving. Furthermore, it
+  is observed that a coded OFDM system results in coding gain. Coding gain
+  approaches a constant at a high enough SNR. This means that the gap
+  between the coded and uncoded error curves remains approximately constant
+  at a reasonably high SNR. Intuitively, coding gain can be interpreted as
+  the amount of additional transmit power required to achieve a particular
+  P_e in an uncoded system (versus a coded system).
+
+
+##############################################################################
+ PART 2: MATLAB SIMULATION INFERENCES (EXPTS 1-7)
+##############################################################################
+
+
+------------------------------------------------------------------------------
+ MATLAB EXPT 1: Simulation of Large-Scale and Small-Scale Fading + Link Budget
+                (Exp1_Large_And_Small_Scale_Fading.m)
+------------------------------------------------------------------------------
+
+Inference to write:
+
+  In this experiment, we studied the effects of large-scale fading, link
+  budget analysis, and small-scale fading with the aid of a MATLAB
+  simulation. For large-scale fading at f_c = 1.5 GHz, we infer that free-
+  space path loss increases as distance d increases and as antenna gains
+  (G_t, G_r) are reduced. In the log-distance path loss model, the path loss
+  increases much more steeply with distance for higher path loss exponents
+  (n = 2, 3, 6). Furthermore, the log-normal shadowing model (sigma = 3 dB,
+  n = 2) illustrates the random environmental fluctuations superimposed on
+  the deterministic log-distance trend. In the link budget analysis, the
+  received power P_r decays with distance and fluctuates due to shadowing,
+  maintaining a positive fade margin as long as P_r remains above the
+  receiver sensitivity threshold (-90 dBm). Finally, for small-scale
+  multipath fading, the normalized PDF histograms confirm that Rayleigh
+  fading models harsh non-line-of-sight (NLOS) scattering with higher
+  probability of deep fades near zero amplitude, whereas Rician fading
+  (K = 6 dB) includes a strong line-of-sight (LOS) component that shifts the
+  amplitude distribution toward a higher mean value.
+
+Parameter observation (n = 2, 3, 6 & Rayleigh vs. Rician K = 6 dB):
+
+  Increasing the path loss exponent n from 2 to 6 increases the slope of the
+  path loss curve (10*n dB per decade of distance). In small-scale fading,
+  setting K = 0 reduces the Rician distribution to a Rayleigh distribution,
+  whereas increasing K narrows the PDF around the deterministic LOS peak.
+
+
+------------------------------------------------------------------------------
+ MATLAB EXPT 2: Study of Receive Diversity Concepts (SC, MRC and EGC)
+                (Exp2_Diversity_Combining.m)
+------------------------------------------------------------------------------
+
+Inference to write:
+
+  In this experiment, we studied the various receive diversity techniques
+  such as Selection Combining (SC), Maximal Ratio Combining (MRC), and Equal
+  Gain Combining (EGC) over Rayleigh and Rician fading channels. From the
+  simulation results, we observe that MRC outperforms all other schemes in
+  terms of achievable BER across all diversity branches (L = 1 to 4).
+  Selection diversity is simple to implement because it only monitors and
+  selects the single branch with the highest instantaneous SNR, but it is
+  suboptimal because it discards the energy from the remaining branches. On
+  the other hand, MRC weights each of the L branches by the complex
+  conjugate of its channel gain and co-phases them, maximizing the output
+  SNR. Furthermore, the performance of EGC, which co-phases the signals with
+  equal unit weights, is only marginally inferior to MRC while remaining
+  significantly superior to selection combining.
+
+Parameter observation (L = 1 to 4 & Rayleigh vs. Rician):
+
+  Increasing the number of receive antennas from L = 1 to L = 4 increases
+  the diversity order (steepening the downward slope of the BER curve at
+  high SNR), and the Rician channel yields lower BER than the Rayleigh
+  channel for the same L due to the presence of a deterministic LOS path.
+
+
+------------------------------------------------------------------------------
+ MATLAB EXPT 3: Study of Transmit Diversity (Alamouti Scheme)
+                (Exp3_Alamouti_Rician.m)
+------------------------------------------------------------------------------
+
+Inference to write:
+
+  In this experiment, we studied the orthogonal Space-Time Block Coding
+  (STBC) transmission strategy using the Alamouti 2x1 and 2x2 schemes over
+  a Rician fading channel. From the simulation results, it is inferred that
+  transmit diversity extracts full spatial diversity (diversity order 2*M_r)
+  using two transmit antennas even in the absence of channel state
+  information at the transmitter (CSIT). Compared to equivalent receive
+  diversity, the Alamouti scheme offers the practical advantage of placing
+  multiple antennas at the base station rather than the mobile handset,
+  keeping subscriber equipment smaller and less expensive. Furthermore, the
+  simulated BER curves closely match the theoretical fading BER curves across
+  all Eb/N0 values. While the BER in the low SNR regime is high, a steep
+  waterfall drop in BER is achieved at higher SNR, especially when moving
+  from a 2x1 MISO configuration to a 2x2 MIMO configuration.
+
+Parameter observation (2x1 vs. 2x2, QPSK vs. 8-PSK, K = 4 vs. K = 0.6):
+
+  Doubling the receive antennas from 2x1 to 2x2 doubles the diversity order
+  from 2 to 4 (sharper BER slope). Lower-order QPSK (M = 4) outperforms
+  8-PSK (M = 8) due to larger minimum Euclidean distance between symbols, and
+  a higher Rician K-factor (K = 4 vs. K = 0.6) improves BER performance due
+  to a stronger LOS component.
+
+
+------------------------------------------------------------------------------
+ MATLAB EXPT 4: Simulation of MIMO System - Spatial Multiplexing and
+                Interference Cancellation (Exp4_MIMO_ZF_MMSE_ML.m)
+------------------------------------------------------------------------------
+
+Inference to write:
+
+  In this experiment, we studied 2x2 MIMO spatial multiplexing and
+  successive interference cancellation (SIC) detection techniques using
+  uncoded QPSK modulation. From the simulation results, we observe that the
+  Maximum Likelihood (ML) detector achieves the best BER performance,
+  followed by MMSE-SIC and finally ZF-SIC. While ZF-SIC inverts the channel
+  matrix to cancel inter-stream interference completely, it suffers from
+  noise enhancement at low-to-moderate SNR. MMSE-SIC improves upon ZF-SIC by
+  balancing interference suppression with noise variance regularization
+  prior to stripping the strongest detected symbol stream. Although the ML
+  receiver is optimal and achieves full receive diversity order by searching
+  over all possible transmit symbol vectors, its computational complexity
+  grows exponentially with the number of transmit antennas and modulation
+  order (M^N_t), whereas ZF-SIC and MMSE-SIC offer practical low-complexity
+  alternatives.
+
+Parameter observation (ZF-SIC vs. MMSE-SIC vs. ML):
+
+  At any given Eb/N0, BER follows the strict ordering BER_ML < BER_MMSE-SIC
+  < BER_ZF-SIC, with ML exhibiting a steeper BER slope (higher diversity
+  gain) at high SNR.
+
+
+------------------------------------------------------------------------------
+ MATLAB EXPT 5: Implementation of IEEE 802.11n Standard (PHY Layer PER)
+                (Exp5_WLAN_80211n_PER.m)
+------------------------------------------------------------------------------
+
+Inference to write:
+
+  In this experiment, we implemented an end-to-end physical layer simulation
+  of an IEEE 802.11n High Throughput (HT) 2x2 MIMO link (20 MHz bandwidth,
+  MCS 15, BCC coding) over a TGn Model-B fading channel with AWGN to
+  evaluate the Packet Error Rate (PER). At the receiver, realistic baseband
+  processing is performed sequentially: packet detection and coarse CFO
+  estimation using L-STF, symbol timing and fine CFO correction using L-LTF,
+  MIMO channel estimation using HT-LTF, and payload equalization using
+  HT-Data recovery. From the simulation results, we infer that in the low
+  SNR regime (10-15 dB), almost all packets are lost (PER ~ 1), whereas in
+  the higher SNR regime (> 30 dB), synchronization and equalization succeed
+  reliably, causing a sharp drop in the Packet Error Rate.
+
+Parameter observation (maxErrors & maxPackets across SNR):
+
+  The accuracy of the Monte Carlo PER curve is governed by maxErrors (200)
+  and maxPackets (10000); as SNR increases, packet errors become rare and
+  the simulation runs up to the maximum packet limit to resolve low PER
+  values accurately.
+
+
+------------------------------------------------------------------------------
+ MATLAB EXPT 6: IEEE 802.11n MIMO TGn Channel Analysis (All 3 Parts)
+                (Exp6_TGn_Channel_All_Parts.m)
+------------------------------------------------------------------------------
+
+Inference to write:
+
+  In this experiment, we analyzed the IEEE 802.11n indoor MIMO multipath
+  fading channel (wlanTGnChannel) across three configurations. In Part 1, a
+  4x2 MIMO HT waveform using Fourier spatial mapping was passed through a
+  20 MHz TGn channel, and the Spectrum Analyzer confirmed the 20 MHz
+  occupied OFDM bandwidth and frequency-selective fading notches across the
+  two receive antennas. In Part 2, a 40 MHz (CBW40) 2x2 MIMO link was
+  evaluated at SNR = 15 dB by demodulating the HT-LTF to obtain the MIMO
+  channel estimate and equalizing the HT-Data field, demonstrating low bit
+  error rate recovery. In Part 3, we compared the random number stream
+  settings of the TGn channel and inferred that resetting a channel bound to
+  the default 'Global stream' produces independent, non-identical fading
+  waveforms on consecutive runs (logical 0 / false), whereas configuring
+  'mt19937ar with seed' (Seed = 73) produces 100% identical, repeatable
+  channel realizations after reset (logical 1 / true).
+
+Parameter observation (Global Stream vs. Seeded Stream):
+
+  Using 'Global stream' yields sameGlobal = false because the global RNG
+  state advances continuously, while 'mt19937ar with seed' yields
+  sameSeeded = true, which is essential for fair, reproducible benchmarking
+  of receiver algorithms.
+
+
+------------------------------------------------------------------------------
+ MATLAB EXPT 7: Simulation of IEEE 802.16 WiMAX (SUI-1) MIMO Multipath
+                Fading Channel (Exp7_SUI1_MIMO_Channel.m)
+------------------------------------------------------------------------------
+
+Inference to write:
+
+  In this experiment, we simulated a 2x1 MISO / MIMO multipath fading
+  channel based on the IEEE 802.16 fixed wireless WiMAX (Modified SUI-1)
+  delay profile using comm.MIMOChannel with three taps ([0, 0.4, 0.9] us,
+  average path gains [0, -15, -20] dB), Rician fading (K = 4), a rounded
+  Doppler spectrum (f_d = 0.5 Hz), and a transmit antenna correlation of
+  0.7. From the Power Spectral Density (PSD) plots obtained via Welch's
+  method (pwelch), we infer that the simulated Doppler spectrum of the
+  second path closely tracks the theoretical rounded Doppler polynomial
+  curve within [-f_d, +f_d] and sits near the expected -15 dB average path
+  gain level. Furthermore, from the time-domain fading envelope plots and
+  computed correlation matrices across all three paths, we infer that the
+  two transmit links exhibit strong envelope tracking with a measured
+  spatial correlation coefficient closely matching the specified theoretical
+  value of 0.7.
+
+Parameter observation (Path Gains [0, -15, -20] dB & Tx Correlation = 0.7):
+
+  The fading envelope plots show that Path 1 (0 dB) has the highest signal
+  amplitude, followed by Path 2 (-15 dB) and Path 3 (-20 dB), while the
+  off-diagonal elements of corrcoef(g(:,k,1), g(:,k,2)) converge to ~0.7
+  for all three paths.
+
+
+##############################################################################
+ PART 3: OPTICAL FIBER HARDWARE INFERENCES (EXPTS 1-5)
+##############################################################################
+
+
+------------------------------------------------------------------------------
+ OPTICAL EXPT 1: Measurement of Connector and Bending Loss of Optical Fiber
+------------------------------------------------------------------------------
+
+Inference to write:
+
+  In this experiment, we measured the macrobending loss and connector
+  coupling loss in an optical fiber communication link. From the
+  observations, we infer that macrobending loss increases as the loop
+  diameter of the fiber is reduced (down to 2 cm), resulting in a decrease
+  in the received output voltage V_out once the bend radius falls below the
+  critical threshold. Similarly, in the connector alignment setup,
+  increasing the longitudinal separation distance between the two fiber ends
+  increases coupling loss and causes the received output voltage V_out to
+  decay exponentially.
+
+
+------------------------------------------------------------------------------
+ OPTICAL EXPT 2: Attenuation Measurement of Fiber
+------------------------------------------------------------------------------
+
+Inference to write:
+
+  In this experiment, we measured the attenuation loss of an optical fiber
+  cable of different lengths (L1 = 1 m and L2 = 3 m). From the results, we
+  infer that the received output voltage V_out decreases as the length of
+  the optical fiber cable increases due to material absorption, scattering,
+  and radiative losses along the waveguide. The attenuation constant alpha
+  (in Np/m and dB/m) determines the maximum permissible distance between the
+  optical transmitter and receiver.
+
+
+------------------------------------------------------------------------------
+ OPTICAL EXPT 3: Numerical Aperture Determination of Optical Fiber
+------------------------------------------------------------------------------
+
+Inference to write:
+
+  In this experiment, we determined the Numerical Aperture (NA) of the given
+  optical fiber cable. From the experimental measurements at various screen
+  distances d, we infer that the radius of the projected circular light spot
+  x = (AB + CD) / 4 increases proportionally with d, yielding a constant
+  Numerical Aperture NA = sin(theta_a) = x / sqrt(x^2 + d^2). Thus, NA is a
+  dimensionless constant of the fiber that characterizes the maximum
+  acceptance angle over which the core can accept and propagate light.
+
+
+------------------------------------------------------------------------------
+ OPTICAL EXPT 4: Study of Cylindrical Mode Step Index / Graded Index Fiber
+                 (LP Modes)
+------------------------------------------------------------------------------
+
+Inference to write:
+
+  In this experiment, we observed the lower-order Linearly Polarized (LP)
+  modes of an optical fiber using a 633 nm He-Ne laser source. We infer that
+  complete laser light coupling occurs when the lens numerical aperture
+  satisfies NA_rays <= NA_fiber. Depending on the normalized frequency
+  (V-number) and operating wavelength, the fiber can be characterized as
+  single-mode or multimode; for the given fiber with V = 4.91, a total of 12
+  modes are supported and distinct irradiance patterns of low-order modes
+  (LP01, LP11, LP21, LP02) are observed on the screen.
+
+
+------------------------------------------------------------------------------
+ OPTICAL EXPT 5: Study of Fiber Optic Analog and Digital Link
+------------------------------------------------------------------------------
+
+Inference to write:
+
+  In this experiment, we studied the transmission of analog and digital
+  signals over a 1310 nm laser diode fiber optic link. For the analog link,
+  varying the input sine wave frequency from 1 kHz to 600 kHz allows us to
+  plot the gain-frequency response and determine the 3 dB bandwidth of the
+  optical transceiver. For the digital link, TTL square wave pulses
+  intensity-modulate the optical source and are accurately reconstructed at
+  the digital receiver with preserved T_ON and T_OFF duty cycle timings.
+
+
+==============================================================================
+ END OF DOCUMENT
+==============================================================================
