@@ -1,35 +1,278 @@
-% EXP 7: SUI-1 MIMO channel (IEEE 802.16 WiMAX) - 2 Doppler PSD and 3 envelope graphs
-% Requires Communications Toolbox and Signal Processing Toolbox
-clc; clear; close all; rng(1);
-Fs=0.1e6; N=3e6; % Keep N=3e6 to match record's graph x-axis
-ch=comm.MIMOChannel('SampleRate',Fs, ...
-    'PathDelays',[0 .4 .9]*1e-6,'AveragePathGains',[0 -15 -20], ...
-    'FadingDistribution','Rician','KFactor',4, ...
-    'MaximumDopplerShift',.5,'DopplerSpectrum',doppler('Rounded'), ...
-    'TransmitCorrelationMatrix',[1 .7;.7 1], ...
-    'ReceiveCorrelationMatrix',1,'PathGainsOutputPort',true);
-x=pskmod(randi([0 3],N,2),4); [~,g]=ch(x);
-fd=ch.MaximumDopplerShift; f=-fd:.01:fd;
-a=ch.DopplerSpectrum.Polynomial;
-Sd=(a(1)+a(2)*(f/fd).^2+a(3)*(f/fd).^4) ...
-    /(2*fd*(a(1)+a(2)/3+a(3)/5))*10^(-15/10);
-for k=1:2
-    [P,F]=pwelch(g(:,2,k),hamming(N/5),N/10,[],Fs,'centered');
-    figure; plot(F/1e3,10*log10(P)); hold on;
-    plot(f(Sd>0)/1e3,10*log10(Sd(Sd>0)),'k--');
-    axis([-.01 .01 -80 10]); grid on;
-    title(['Doppler Spectrum - Link ' num2str(k) ' of 2nd Path']);
-    xlabel('Frequency (kHz)'); ylabel('Power/frequency (dB/Hz)');
-    legend('Simulation','Theory');
-end
-for k=1:3
-    figure; semilogy(abs(g(:,k,1)),'b'); hold on;
-    semilogy(abs(g(:,k,2)),'r'); grid on;
-    title(['Fading envelopes for two transmit links of Path ' num2str(k)]);
-    legend('First transmit link','Second transmit link');
-    C=corrcoef(g(:,k,1),g(:,k,2)).';
-    disp(['Tx correlation matrix, path ' num2str(k)]);
-    disp(C);
-    disp(['Path ' num2str(k) ' correlation = ' num2str(C(1,2))]);
-end
+clc;
+clear;
+close all;
+
+%% ================================================================
+% Modified SUI-1 Channel Model
+% Doppler Spectrum and Fading Envelope Analysis
+% ================================================================
+
+%% Simulation parameters
+
+Rsamp = 0.1e6;
+Ns = 3e6;
+
+%% ================================================================
+% Create modified SUI-1 MIMO channel
+% ================================================================
+
+wimaxChan = comm.MIMOChannel( ...
+    'SampleRate', Rsamp, ...
+    'PathDelays', [0 0.4 0.9] * 1e-6, ...
+    'AveragePathGains', [0 -15 -20], ...
+    'FadingDistribution', 'Rician', ...
+    'KFactor', 4, ...
+    'MaximumDopplerShift', 0.5, ...
+    'DopplerSpectrum', doppler('Rounded'), ...
+    'TransmitCorrelationMatrix', [1 0.7; 0.7 1], ...
+    'ReceiveCorrelationMatrix', 1, ...
+    'PathGainsOutputPort', true);
+
+%% ================================================================
+% Generate long QPSK frame
+% ================================================================
+
+Nt = size(wimaxChan.TransmitCorrelationMatrix, 1);
+
+x = pskmod( ...
+    randi([0 3], Ns, Nt), ...
+    4);
+
+%% ================================================================
+% Pass signal through channel
+% ================================================================
+
+[~, g] = wimaxChan(x);
+
+%% ================================================================
+% Doppler spectrum of the 1st link of the 2nd path
+% ================================================================
+
+figure;
+
+win = hamming(Ns/5);
+
+Noverlap = Ns/10;
+
+pwelch( ...
+    g(:,2,1), ...
+    win, ...
+    Noverlap, ...
+    [], ...
+    Rsamp, ...
+    'centered');
+
+axis([-0.1/10 0.1/10 -80 10]);
+
+legend('Simulation');
+
+title('Doppler Spectrum - 1st Link of 2nd Path');
+
+%% ================================================================
+% Theoretical rounded Doppler spectrum
+% ================================================================
+
+fd = wimaxChan.MaximumDopplerShift;
+
+f = -fd:0.01:fd;
+
+a = wimaxChan.DopplerSpectrum.Polynomial;
+
+%% Theoretical rounded Doppler spectrum
+
+Sd = 1 / ...
+    (2 * fd * ...
+    (a(1) + a(2)/3 + a(3)/5)) ...
+    .* ...
+    ( ...
+    a(1) ...
+    + a(2) * (f/fd).^2 ...
+    + a(3) * (f/fd).^4);
+
+%% Scale by average path power
+
+Sd = Sd * ...
+    10^(wimaxChan.AveragePathGains(2)/10);
+
+%% Overlay theoretical spectrum
+
+hold on;
+
+plot( ...
+    f(Sd > 0)/1e3, ...
+    10*log10(Sd(Sd > 0)), ...
+    'k--');
+
+legend( ...
+    'Simulation', ...
+    'Theory');
+
+%% ================================================================
+% Doppler spectrum of the 2nd link of the 2nd path
+% ================================================================
+
+figure;
+
+pwelch( ...
+    g(:,2,2), ...
+    win, ...
+    Noverlap, ...
+    [], ...
+    Rsamp, ...
+    'centered');
+
+axis([-0.1/10 0.1/10 -80 10]);
+
+legend('Simulation');
+
+title('Doppler Spectrum - 2nd Link of 2nd Path');
+
+%% Overlay theoretical spectrum
+
+hold on;
+
+plot( ...
+    f(Sd > 0)/1e3, ...
+    10*log10(Sd(Sd > 0)), ...
+    'k--');
+
+legend( ...
+    'Simulation', ...
+    'Theory');
+
+%% ================================================================
+% Fading envelopes for Path 1
+% ================================================================
+
+figure;
+
+semilogy( ...
+    abs(g(:,1,1)), ...
+    'b');
+
+hold on;
+
+grid on;
+
+semilogy( ...
+    abs(g(:,1,2)), ...
+    'r');
+
+legend( ...
+    'First transmit link', ...
+    'Second transmit link');
+
+title( ...
+    'Fading envelopes for two transmit links of Path 1');
+
+%% ================================================================
+% Fading envelopes for Path 2
+% ================================================================
+
+figure;
+
+semilogy( ...
+    abs(g(:,2,1)), ...
+    'b');
+
+hold on;
+
+grid on;
+
+semilogy( ...
+    abs(g(:,2,2)), ...
+    'r');
+
+legend( ...
+    'First transmit link', ...
+    'Second transmit link');
+
+title( ...
+    'Fading envelopes for two transmit links of Path 2');
+
+%% ================================================================
+% Fading envelopes for Path 3
+% ================================================================
+
+figure;
+
+semilogy( ...
+    abs(g(:,3,1)), ...
+    'b');
+
+hold on;
+
+grid on;
+
+semilogy( ...
+    abs(g(:,3,2)), ...
+    'r');
+
+legend( ...
+    'First transmit link', ...
+    'Second transmit link');
+
+title( ...
+    'Fading envelopes for two transmit links of Path 3');
+
+%% ================================================================
+% Transmit correlation coefficients
+% ================================================================
+
+TxCorrMatrixPath1 = corrcoef( ...
+    g(:,1,1), ...
+    g(:,1,2)).';
+
+TxCorrMatrixPath2 = corrcoef( ...
+    g(:,2,1), ...
+    g(:,2,2)).';
+
+TxCorrMatrixPath3 = corrcoef( ...
+    g(:,3,1), ...
+    g(:,3,2)).';
+
+%% ================================================================
+% Display correlation matrices
+% ================================================================
+
+disp(' ');
+disp('==============================================');
+disp('Transmit Correlation Matrix - Path 1');
+disp('==============================================');
+
+disp(TxCorrMatrixPath1);
+
+disp(' ');
+disp('==============================================');
+disp('Transmit Correlation Matrix - Path 2');
+disp('==============================================');
+
+disp(TxCorrMatrixPath2);
+
+disp(' ');
+disp('==============================================');
+disp('Transmit Correlation Matrix - Path 3');
+disp('==============================================');
+
+disp(TxCorrMatrixPath3);
+
+%% ================================================================
+% Display correlation coefficients
+% ================================================================
+
+disp(' ');
+disp('==============================================');
+disp('Correlation Coefficients');
+disp('==============================================');
+
+disp(['Path 1 = ' ...
+    num2str(TxCorrMatrixPath1(1,2))]);
+
+disp(['Path 2 = ' ...
+    num2str(TxCorrMatrixPath2(1,2))]);
+
+disp(['Path 3 = ' ...
+    num2str(TxCorrMatrixPath3(1,2))]);
+
+disp(' ');
 disp('Specified transmit correlation = 0.7');
