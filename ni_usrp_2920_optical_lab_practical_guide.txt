@@ -1,0 +1,658 @@
+==============================================================================
+ NI-USRP 2920 / LabVIEW PRACTICAL EXAM CHEAT SHEET (WITH TABULATIONS)
+==============================================================================
+
+Every experiment is broken down into:
+  - Files to open (Sub-VIs used)
+  - Exact parameters to enter (Written Procedure vs. Screenshot Settings)
+  - Parameter to change & What happens/why
+  - Example Observation Table (with exact values from your record & notebook)
+
+
+------------------------------------------------------------------------------
+ UNIVERSAL ARCHITECTURE (same for Expts 1-5)
+------------------------------------------------------------------------------
+
+Transmitter chain (transmitter.vi):
+  source (key bit sequence [U8]) -> MOD (data symbols [CDB]) -> add control
+  -> pulse shaping
+
+Receiver chain (receiver.vi):
+  matched filter -> synch (offset [I32]) -> channel estimate -> equalize
+  -> strip control -> decode -> error detect (bit-error rate [DBL])
+
+For Expts 6 and 7 (OFDM_transmitter.vi and OFDM_receiver.vi):
+  - Transmitter: adds "OFDM mod" and "Scale energy to compensate for IFFT"
+    (sqrt(N)) after MOD.
+  - Receiver: adds "OFDM strip control" -> "OFDM demod" -> "divide by
+    sqrt(N)" before decode.
+
+
+==============================================================================
+ EXPT 1: DIGITAL MODULATION AND DETECTION TECHNIQUES (M-QAM)
+==============================================================================
+
+Sub-VIs used:
+  - Modulate.vi : maps U8 bits to CDB constellation symbols and sets the
+                  symbol energy.
+  - Decode.vi   : performs Maximum Likelihood (ML) detection from CDB symbols
+                  to U8 bits.
+
+Steps to perform:
+  1. Open top_tx.vi and top_rx.vi in LabVIEW.
+
+  2. Set hardware parameters on both:
+       device name        = 192.168.10.2
+       IQ Sampling Rate   = 500k (S/sec)
+       Carrier Frequency  = 915M (Hz)
+       Active Antenna     = TX1 (on Tx) / RX1 (on Rx)
+       Enabled Channel    = 0
+       Gain               = 0 dB (on Tx) / 12 dB (on Rx)
+
+  3. Set filter and frame parameters:
+       TX Filter          = Root Raised Cos
+       Alpha              = 0.50
+       Filter Length      = 6
+       Samples per Symbol = 4
+       Symbol Rate        = 125k (symbols/sec)
+       Reset Demodulator? = True (on Rx)
+
+     * Written Procedure vs. Front-Panel Screenshot Note:
+       - Written manual states: Packet length = 100 bits.
+       - Front-panel screenshots show:
+           Tx: PN Sequence Order = 9, Frame Length = 2044 samples
+           Rx: Acq Duration = 5.00m (sec), Frame Size = 2500 samples,
+               eye length = 2
+
+  4. Run top_tx.vi FIRST and wait until the transmitting LED indicator turns on.
+  5. Run top_rx.vi SECOND and view the "Rx Constellation", "Rx Eye Diagram",
+     and "Impairment Measurements" tabs.
+
+Parameter to change:
+  - Change "QAM M-ary" across 4, 16, and 32 on both Tx and Rx.
+
+What happens and why:
+  - 4-QAM (2 bits/symbol): shows 4 well-separated corner dots in the
+    constellation and a 2-level, wide-open eye diagram.
+  - 16-QAM (4 bits/symbol) and 32-QAM (5 bits/symbol): display a 4x4 grid
+    (16 dots) and 32 tightly packed dots, respectively.
+    Because more bits are packed per symbol (M = 2^b) at the same transmit
+    power, the Euclidean distance between adjacent constellation points
+    shrinks, and the eye diagram splits into multiple crowded vertical
+    amplitude levels, making higher-order QAM much more prone to noise.
+
+Data to Tabulate (Expt 1 Observation Table):
++-----------+-------------+-------------------+--------------------+-------------------+------------------------+
+| QAM M-ary | Bits/Symbol | Symbol Rate       | Constellation      | Eye Diagram       | Measured Impairments   |
+| (M)       | (b=log2(M)) | (symbols/sec)     | Points Observed    | Vertical Levels   | (from 4-QAM panel)     |
++-----------+-------------+-------------------+--------------------+-------------------+------------------------+
+| 4-QAM     | 2 bits      | 125.00 k          | 4 points (2x2)     | 2 levels (wide)   | Freq Offset = 0.14 Hz  |
+| 16-QAM    | 4 bits      | 125.00 k          | 16 points (4x4)    | 4 levels (medium) | Freq Drift  = 1.08 Hz  |
+| 32-QAM    | 5 bits      | 125.00 k          | 32 points (cross)  | 6 levels (crowded)| Phase Offset= -22.87 deg|
++-----------+-------------+-------------------+--------------------+-------------------+------------------------+
+
+
+==============================================================================
+ EXPT 2: PULSE SHAPING AND MATCHED FILTERING ANALYSIS
+==============================================================================
+
+Sub-VIs used:
+  - pulse_shaping.vi     : oversamples input and applies transmit pulse-shaping
+                           filter g_tx(t).
+  - matched_filtering.vi : applies the matched filter g_rx(t) = g_tx(-t) to
+                           maximize SNR.
+
+Steps to perform:
+  1. Open Simulator.vi (integrates top_tx.vi and top_rx.vi).
+
+  2. Set TRANSMITTER and RECEIVER:
+       TX/RX oversample factor = 4
+       TX/RX sample rate       = 4M
+       channel model           = AWGN
+       noise power (dB)        = -Inf
+       Channel response        = [1] (or [0.556+0i] in alpha=0.4 screenshot)
+       Frequency offset        = 0, delay (sec) = 0
+       Synchronization Method  = Timing Estimation
+       Symbol Timing Recovery  = Max Energy
+       Frame Detection Method  = Sliding Correlator
+       Correct Frequency Offset= OFF
+       Equalization Method     = Direct
+       Channel estimate length = 4, Equalizer length = 4, Equalizer delay = -1
+
+  3. Set SHARED:
+       modulation type         = QPSK
+       packet length (bits)    = 200
+       # of iterations         = 1
+       Training Sequence Type  = Length 11 Barker Sequence
+       Zero Pad Length         = 8
+       modulation type (filter)= PSK
+       pulse shaping filter    = Root Raised
+       filter length (symbols) = 8
+       (Note: Written procedure also mentions Capture time = 2 msec,
+        default Filter parameter = 0.5).
+
+  4. Run the VI and open the "Received Eye Diagram" tab.
+
+Parameter to change:
+  - Vary "filter parameter" (roll-off factor alpha) through 0.2, 0.4, 0.6,
+    and 0.8.
+
+What happens and why:
+  - At alpha = 0.2: the impulse response tails decay slowly, causing heavy
+    waveform ringing/overshoot and a NARROW vertical eye opening.
+  - As alpha increases to 0.8: the filter tails decay faster in the time
+    domain, which REDUCES Inter-Symbol Interference (ISI), eliminates
+    overshoot, and produces a much wider, cleaner eye diagram opening over
+    the sampling period (at the cost of excess bandwidth).
+
+Data to Tabulate (Expt 2 Observation Table):
++------------------+--------------------+----------------+-----------------+-------------+--------------------+
+| Roll-Off Factor  | Measured SNR       | Freq. Offset   | Estimated       | Average BER | Eye Diagram        |
+| (alpha)          | (dB)               | (Hz)           | Offset (samples)|             | Qualitative State  |
++------------------+--------------------+----------------+-----------------+-------------+--------------------+
+| alpha = 0.2      | 19.65 dB           | -13.75 Hz      | 16              | 0.000000    | High ringing/narrow|
+| alpha = 0.4      | 28.43 dB           | 7.80 Hz        | 16              | 0.000000    | Moderate ringing   |
+| alpha = 0.6      | 30.21 dB           | 9.54 Hz        | 16              | 0.000000    | Wide clean opening |
+| alpha = 0.8      | 31.79 dB           | 3.55 Hz        | 16              | 0.000000    | Widest eye, no ISI |
++------------------+--------------------+----------------+-----------------+-------------+--------------------+
+
+
+==============================================================================
+ EXPT 3: DEMONSTRATION OF SYNCHRONIZATION (SYMBOL TIMING RECOVERY)
+==============================================================================
+
+Sub-VIs used:
+  - Synchronization.vi, containing:
+      align_MaxEnergy.vi : computes sampling offset by maximizing average
+                           energy J_approx[k].
+      align_ELgate.vi    : Early-Late Gate algorithm, minimizing J_delta[k].
+
+Steps to perform:
+  1. Open Simulator.vi (or top_tx.vi and top_rx.vi).
+
+  2. Set TRANSMITTER and RECEIVER:
+       TX/RX sample rate       = 20M
+       TX/RX oversample factor = 20  (large M required for fine resolution)
+       channel model           = ISI
+       noise power (dB)        = -20 dB (Setup A) and -10 dB (Setup B)
+       channel response        = [0.77+0i, 0.63+0i] (2-tap ISI channel)
+
+  3. Set SHARED:
+       modulation type         = QPSK
+       packet length (bits)    = 500
+       # of iterations         = 1
+       Training Sequence Type  = Length 11 Barker Sequence
+       Zero Pad Length         = 8
+       pulse shaping filter    = Root Raised
+       filter parameter        = 0.5
+       filter length (symbols) = 8
+
+  4. Under RECEIVER -> synchronization & equalizer options:
+       Synchronization Method        = Timing Estimation
+       Symbol Timing Recovery Method = Max Energy
+       Frame Detection Method        = Sliding Correlator
+       Correct Frequency Offset      = OFF
+       Equalization Method           = Direct
+       Channel estimate length       = 6 (or 1), Equalizer length = 6 (or 1),
+       Equalizer delay               = -1
+
+Parameter to change:
+  - Compare eye diagram and QPSK constellation with Max Energy symbol timing
+    synchronization active across ISI channel conditions (noise power = -20 dB
+    vs. -10 dB).
+  - Note: Similar to Expt 5, you can also compare the Symbol Timing Recovery
+    Methods (Max Energy, Early-Late, MT Align, Gardner, and Fixed Offset) by
+    recording Estimated Offset, Error Statistic, and Average BER.
+
+What happens and why:
+  - The channel introduces an unknown propagation time delay (tau_d).
+  - The "Max Energy" synchronizer finds the exact sample delay offset (k_hat)
+    where the matched filter output has maximum energy prior to downsampling
+    by M = 20.
+  - This aligns sampling at the widest point of the eye diagram and locks the
+    QPSK symbols into 4 tight quadrant clusters with average BER = 0.
+
+Data to Tabulate (Expt 3 Observation Table):
++------------------+---------------+------------------+------------------+-------------+-------------+------------------------+
+| Channel & Noise  | Oversampling  | Measured SNR     | Estimated Timing | Error       | Average BER | Constellation & Eye    |
+| Power Setting    | Factor (M)    | (dB)             | Offset (samples) | Statistic   |             | Observation            |
++------------------+---------------+------------------+------------------+-------------+-------------+------------------------+
+| ISI, Noise=-20dB | M = 20        | 13.72 dB         | 80               | 0.000000    | 0.000000    | Open eye, 4 tight dots |
+| ISI, Noise=-10dB | M = 20        | 14.30 dB         | 160              | 0.000000    | 0.000000    | Open eye, 4 tight dots |
++------------------+---------------+------------------+------------------+-------------+-------------+------------------------+
+
+
+==============================================================================
+ EXPT 4: CHANNEL ESTIMATION AND EQUALIZATION
+==============================================================================
+
+Sub-VIs used:
+  - LLSE.vi     : solves linear system Ax = b (y = Ta) via Linear Least Squares
+                  to estimate channel taps h_hat and squared error ||Ax - b||^2.
+  - Toeplitz.vi : generates an m-by-n Toeplitz matrix H_hat from first row and
+                  column inside Equalizer.vi to compute the FIR equalizer:
+                    f_hat(nd) = (H_hat* H_hat)^-1 H_hat* e(nd)
+
+Steps to perform:
+  1. Open Simulator.vi / receiver.vi and set Shared parameters:
+       Packet length            = 500 bits
+       Modulation               = QPSK
+       Training Sequence Type   = Length 11 Barker Sequence
+       Zero Pad Length          = 8
+       Filter parameter (alpha) = 0.2, Filter length = 8
+       Correct Frequency Offset = OFF (disabled to avoid errors)
+
+  2. SETUP 1 (Narrowband System):
+     * Written Manual Values:
+         Tx sample rate = 20M, Tx oversample factor = 200,
+         Rx sample rate = 2M,  Equalizer length = 1, Capture time = 3.5 msec.
+     * Simulator Screenshot Values (Pages 29-30):
+         Tx/Rx sample rate = 20M, Tx OSF = 200, Rx OSF = 20,
+         Channel estimate length = 4, Equalizer length = 1, Equalizer delay = -1,
+         Pulse shaping filter = Raised Cosine.
+
+  3. SETUP 2 (Wideband System):
+     * Written Manual Values:
+         Tx sample rate = 20M, Tx oversample factor = 4,
+         Rx sample rate = 10M, Rx oversample factor = 2,
+         Equalizer length = 6, Channel estimation length = 6,
+         Capture time = 80 usec.
+     * Simulator Screenshot Values (Pages 27-28):
+         Tx/Rx sample rate = 4M, Tx/Rx OSF = 4,
+         Channel estimate length = 4 (or 1), Equalizer length = 6 (or 1),
+         Pulse shaping filter = Root Raised.
+
+Parameter to change:
+  - Compare AWGN vs. ISI channel models (with 2-tap impulse response
+    [0.8+0i, 0.547+0i] at noise power = -20 dB or -Inf).
+  - In the receiver.vi block diagram, rewire the "recovered symbols" wire to
+    tap the signal BEFORE vs. AFTER the "equalize" block.
+
+What happens and why:
+  - Before equalization (or with Equalizer length = 1 in an ISI channel):
+    multipath delay spread causes neighboring QPSK symbols to collide,
+    splitting the 4 ideal points into 16 scattered constellation clusters
+    (4 clusters per quadrant) and closing the eye diagram.
+  - After equalization (Equalizer length = 6): LLSE.vi uses the Length-11
+    Barker sequence (N_t >= 2L+1) to estimate the channel. The Least-Squares
+    FIR equalizer acts as an inverse filter, collapsing the 16 clusters back
+    into 4 clean QPSK points with BER = 0.
+
+Data to Tabulate (Expt 4 Observation Table):
++------------------------+-------------+---------------+----------------+-----------------+-------------+------------------------+
+| System & Channel       | Equalizer   | Measured SNR  | Estimated      | Channel Est.    | Average BER | Constellation          |
+| Configuration          | Length (Lf) | (dB)          | Offset (samp.) | Taps (h_hat)    |             | Appearance             |
++------------------------+-------------+---------------+----------------+-----------------+-------------+------------------------+
+| Wideband AWGN (OSF=4)  | Lf = 6      | 32.39 dB      | 16             | [0.779, 0.000]  | 0.000000    | 4 sharp ideal points   |
+| Wideband ISI  (OSF=4)  | Lf = 1 (Pre)| 22.87 dB      | 8              | [0.692, 0.223]  | 0.000000    | PDP shows 2 multipath  |
+| Narrowband AWGN(OSF=20)| Lf = 1      | 42.42 dB      | 160            | [0.998, 0.000]  | 0.000000    | 4 sharp ideal points   |
+| Narrowband ISI (Pre-Eq)| Lf = 1 (Off)| 19.87 dB      | 80             | [0.897, 0.436]  | 0.000000    | 16 scattered clusters! |
+| Narrowband ISI (Noisy) | Lf = 1      | 13.86 dB      | 80             | [0.897, 0.489]  | 0.000000    | Heavy ISI eye closure  |
++------------------------+-------------+---------------+----------------+-----------------+-------------+------------------------+
+
+
+==============================================================================
+ EXPT 5: FRAME DETECTION AND FREQUENCY OFFSET CORRECTION
+==============================================================================
+
+Flowchart (from Lab Notebook):
+                 +-------------------+
+                 |    receiver.vi    |
+                 +---------+---------+
+                           |
+             +-------------v-------------+
+             |  Digital Comm. Library    |
+             |   +-------------------+   |
+             |   |  Synchronize.vi   |   |
+             |   +---------+---------+   |
+             |             |             |
+             |   +---------v---------+   |
+             |   |  frame_detect.vi  |   |
+             |   +-------------------+   |
+             +---------------------------+
+
+Sub-VIs used:
+  - frame_detect.vi / sliding_correlator.vi : locates the start of the frame
+        using training sequence correlation.
+  - Moose.vi : implements the Moose algorithm to estimate and cancel Carrier
+        Frequency Offset (CFO):  f_offset_hat = epsilon_hat / T
+
+Steps to perform:
+  1. Open Simulator.vi (or top_tx.vi and top_rx.vi).
+
+  2. Set Transmitter and Receiver base parameters:
+       TX sample rate           = 4M (MSamp/sec)
+       TX oversample factor     = 20
+       RX sample rate           = 4M (MSamp/sec)
+       RX oversample factor     = 20
+       Capture time             = 2 msec
+       Channel estimate length  = 2
+       Equalizer length         = 4
+       Equalizer delay          = -1
+       Packet length (bits)     = 500
+       Modulation               = QPSK
+       Training Sequence Type   = Length 11 Barker Sequence
+       Zero Pad Length          = 8
+       pulse shaping filter     = Raised Cosine (alpha = 0.5, length = 8)
+       Frame Detection Method   = Sliding Correlator
+
+  3. Notebook Tabulation Test Setup:
+       Set Frequency offset     = 200 Hz
+       Set noise power          = 5 dB
+       Vary the Symbol Timing Recovery Method across all 5 options:
+         1. Max energy
+         2. Early-late
+         3. MT align
+         4. Gardner
+         5. Fixed offset (Synchronization Method = Fixed Offset, offset = 0)
+       For each method, record Est. Offset, Error, and BER both WITHOUT
+       frequency offset correction (Correct Frequency Offset = OFF) and WITH
+       frequency offset correction (Correct Frequency Offset = ON).
+
+  4. Record Screenshot Test Setup (Pages 34-35):
+       Set Correct Frequency Offset = ON, noise power = -20 dB, and vary
+       Transmitter "Frequency offset (Hz)" through 0, 30, 60, and 100 Hz.
+
+What happens and why:
+  - Mismatched Tx and Rx oscillators create a CFO that rotates symbol phase.
+  - Without frequency offset correction (or when timing recovery is slightly
+    off at 77-81), the 200 Hz offset and 5 dB noise cause higher error
+    statistics and BER across all timing recovery methods.
+  - With frequency offset correction ON (Moose algorithm active) and frame
+    detection locking onto the exact frame start (estimation offset = 80),
+    the error statistic drops to 0 and BER improves across the methods.
+
+Data to Tabulate - Table 5A (Exact Lab Notebook Table: Freq offset = 200 Hz, noise power = 5 dB):
++----------------+----------------------------------+----------------------------------+
+| Timing Method  |      W/o freq offset             |       With freq offset           |
+|                +-------------+--------+-----------+-----------+--------+-------------+
+|                | est. offset | error  |    BER    |    BER    | error  | estimation  |
+|                |             |        |           |           |        |   offset    |
++----------------+-------------+--------+-----------+-----------+--------+-------------+
+| Max energy     |     77      |   0    |   0.36    |   0.386   |   0    |     80      |
+| Early-late     |     78      |  0.01  |   0.286   |   0.314   |   0    |     80      |
+| MT align       |     79      | 0.0025 |   0.27    |   0.154   |   0    |     80      |
+| Gardner        |     81      | 0.0025 |   0.328   |   0.215   |   0    |     80      |
+| Fixed offset   |     80      |   0    |   0.275   |   0.186   |   0    |     80      |
++----------------+-------------+--------+-----------+-----------+--------+-------------+
+
+Data to Tabulate - Table 5B (From Record Screenshots Pages 34-35, Noise = -20 dB):
++-----------------------+-----------------------+--------------------+------------------+-----------------+-------------+
+| Applied Tx Frequency  | Measured Rx Frequency | Measured SNR       | Estimated Frame  | Error Statistic | Average BER |
+| Offset (Hz)           | Offset (Moose.vi, Hz) | (dB)               | Offset (samples) |                 |             |
++-----------------------+-----------------------+--------------------+------------------+-----------------+-------------+
+| 0 Hz                  | -0.154 Hz             | 18.88 dB           | 80               | 0.000000        | 0.000000    |
+| 30 Hz                 | 30.715 Hz             | 21.48 dB           | 80               | 0.000000        | 0.000000    |
+| 60 Hz                 | 60.264 Hz             | 21.22 dB           | 80               | 0.004000        | 0.004000    |
+| 100 Hz                | 99.483 Hz             | 23.38 dB           | 80               | 0.378000        | 0.378000    |
++-----------------------+-----------------------+--------------------+------------------+-----------------+-------------+
+
+
+==============================================================================
+ EXPT 6: IMPLEMENTATION OF OFDM MODULATION
+==============================================================================
+
+Sub-VIs used:
+  - OFDM_modulate.vi   : takes the N-point IFFT and prepends the Cyclic
+                         Prefix (Lc); one OFDM symbol = (N + Lc) samples.
+  - OFDM_demodulate.vi : strips Lc, takes the N-point FFT, and performs
+                         1-tap Frequency Domain Equalization (FEQ): Y[k]/H[k].
+
+Steps to perform and parameters to change:
+  1. Open OFDM_simulator.vi (or top_ofdm_tx.vi and top_ofdm_rx.vi).
+
+  2. Set base Shared & Receiver parameters:
+       Packet length                     = 500 bits
+       Modulation                        = QPSK
+       Training Sequence Type            = IEEE 802.11a Short Training
+       Zero Pad Length                   = 8
+       pulse shaping filter              = Raised Cosine (alpha = 0.5, len = 8)
+       FFT size (N)                      = 64
+       Length of CP (Lc)                 = 8
+       Null tones                        = {0, 31, 32, 33}
+       Training Sequence FFT size        = 64, Training Sequence CP = 8
+       Synchronization Method            = OFDM Synchronization
+       Frame Detection Method            = OFDM Frame & Frequency Sync
+       Channel estimate length           = 4, Equalizer length = 4, delay = -1
+       Equalize Channel                  = ON (TRUE)
+
+  3. TEST A - Narrowband vs. Wideband Channel:
+       Narrowband (Written Manual):
+         TX/RX sample rate = 4M, TX/RX OSF = 20, Capture time = 2.4 msec
+       Wideband (Written Manual):
+         TX sample rate = 20M, TX OSF = 4, RX sample rate = 10M, RX OSF = 2,
+         Capture time = 100 usec
+       (Note: Simulator screenshot on page 44 uses TX/RX sample rate = 20M,
+        TX/RX OSF = 4, AWGN noise power = -20 dB; Hardware USRP screenshots on
+        pages 44-45 use Carrier Freq = 1.93G, Gain = 30 dB, Capture = 1.25m,
+        Bandwidth = 400k).
+
+  4. TEST B - Effect of Frequency Offset & Subcarrier Count (N = 64 vs 1024):
+       Set TX sample rate = 20M, TX OSF = 20 (or 4 in screenshot),
+       RX sample rate = 4M (or 20M), RX OSF = 4, Capture time = 500 usec.
+       Set Frequency offset (Hz) = 200 Hz (and increase in steps of 200 Hz)
+       with Correct Frequency Offset = OFF.
+       Compare:
+         (a) FFT Size (N) = 64,   Lc = 8,  Nulls = {0, 31, 32, 33}
+         (b) FFT Size (N) = 1024, Lc = 32, Nulls = {0, 511, 512, 513}
+
+What happens and why:
+  - Narrowband vs. Wideband: The Cyclic Prefix (Lc >= Lh) prevents ISI between
+    OFDM symbols and converts linear convolution into circular convolution,
+    allowing 1-tap FEQ division Y[k]/H[k] to produce 4 clean QPSK points.
+  - Frequency Offset (200 Hz) & N = 64 vs. 1024: Frequency offset destroys
+    orthogonality between subcarriers, causing Inter-Carrier Interference (ICI)
+    that scatters the constellation. Because N = 1024 has 16x narrower
+    subcarrier spacing than N = 64, the same 200 Hz offset causes much worse
+    ICI and higher BER for N = 1024.
+
+Data to Tabulate (Expt 6 Observation Table):
++-------------------------------+----------+--------+---------------+----------------+-------------+------------------------+
+| OFDM Test Condition           | FFT Size | CP Len | Applied Freq  | Measured SNR   | Average BER | Constellation /        |
+|                               | (N)      | (Lc)   | Offset (Hz)   | (dB)           |             | Spectrum Observation   |
++-------------------------------+----------+--------+---------------+----------------+-------------+------------------------+
+| Narrowband / Ideal OFDM       | 64       | 8      | 0 Hz          | 20.66 dB       | 0.000000    | 4 tight QPSK clusters  |
+| Wideband USRP Hardware Link   | 64       | 8      | 0 Hz (~194 Hz)| 11.12 dB       | 0.000000    | Flat passband + DC null|
+| OFDM with Frequency Offset    | 64       | 8      | 200 Hz        | 8.85 dB        | 0.008000    | Scattered by ICI       |
+| Large-FFT OFDM with Offset    | 1024     | 32     | 200 Hz        | Degraded (<8dB)| High (>0.05)| Severe ICI scattering  |
++-------------------------------+----------+--------+---------------+----------------+-------------+------------------------+
+
+
+==============================================================================
+ EXPT 7: CHANNEL CODING IN OFDM SYSTEMS
+==============================================================================
+
+Sub-VIs used:
+  - repeat_encoder.vi : implements rate 1/3 repetition block code (repeats
+                        each source bit 3 times: k = 1, n = 3, r = 2).
+  - repeat_decoder.vi : implements majority-vote decoding on each 3-bit block.
+
+Steps to perform:
+  1. Open OFDM_simulator.vi.
+
+  2. Set Transmitter & Receiver parameters:
+       TX/RX sample rate        = 20M
+       TX/RX oversample factor  = 4
+       channel model            = AWGN
+       noise power (dB)         = -10 (high noise to induce errors)
+       channel response         = [1]
+       Synchronization Method   = OFDM Synchronization
+       Symbol Timing Recovery   = Max Energy
+       Frame Detection Method   = OFDM Frame & Frequency Sync
+       Correct Frequency Offset = OFF
+       Equalize Channel         = ON
+
+  3. Set Shared parameters:
+       modulation type          = QPSK
+       packet length (bits)     = 500
+       # of iterations          = 10
+       Training Sequence Type   = IEEE 802.11a Short Training, Zero Pad = 8
+       pulse shaping filter     = Raised Cosine (alpha = 0.5, length = 8)
+       FFT size (N)             = 64
+       Length of CP (Lc)        = 8
+       Number of OFDM Symbols   = 1
+       Null Tones               = {0, 31, 32, 33}
+       Training Seq FFT = 64, Training Seq CP = 8
+
+Parameter to change:
+  - Toggle the "Channel Coding Enabled" boolean switch on the SHARED panel
+    from OFF to ON.
+
+What happens and why:
+  - When OFF (Uncoded): high channel noise (-10 dB) causes raw symbol errors
+    to directly become bit errors (error statistic = 0.08, average BER = 0.072).
+  - When ON (Coded, Rate 1/3 Repetition): each bit is sent 3 times. Even
+    though the physical QPSK constellation and eye diagram remain equally
+    noisy, the majority-vote decoder corrects any single-bit error per 3-bit
+    codeword, cutting the average BER nearly in half (to 0.025, or 0.045 in
+    single-shot view) and demonstrating CODING GAIN.
+
+Data to Tabulate (Expt 7 Observation Table):
++------------------------+-----------+---------------+------------------+-----------------+-------------+--------------------+
+| Channel Coding Switch  | Code Rate | Noise Power   | Measured SNR     | Error Statistic | Average BER | Effect Observed    |
+| State                  | (k / n)   | (dB)          | (dB)             | (Current Frame) | (10-iter)   |                    |
++------------------------+-----------+---------------+------------------+-----------------+-------------+--------------------+
+| OFF (Uncoded OFDM)     | 1 (None)  | -10 dB        | 10.29 dB         | 0.080 (8.0%)    | 0.072000    | High bit errors    |
+| ON  (Coded OFDM, Fig 5)| 1/3       | -10 dB        | 23.69 dB         | 0.010 (1.0%)    | 0.025000    | BER drops (Coding  |
+| ON  (Coded OFDM, Fig 6)| 1/3       | -10 dB        | 11.12 dB         | 0.052 (5.2%)    | 0.045200    | Gain achieved!)    |
++------------------------+-----------+---------------+------------------+-----------------+-------------+--------------------+
+
+
+##############################################################################
+ BONUS: OPTICAL FIBER HARDWARE EXPERIMENTS (PAGES 53-72 OF USRP.PDF)
+##############################################################################
+
+
+==============================================================================
+ OPTICAL EXPT 1: MEASUREMENT OF CONNECTOR AND BENDING LOSS
+==============================================================================
+
+Steps to perform (from Record Pages 55-56):
+  1. Set up the 850 nm (or 650 nm LED2) analog link using a 3 m optical fiber.
+  2. Feed a 1 Vp-p (or V_0 = 1.07 V) sinusoidal signal at 10 kHz (or 1 kHz)
+     with 0 DC to the analog input (P_11) and observe the received signal on
+     the CRO.
+  3. Bending Loss: Form a loop in the fiber and slowly reduce the loop
+     diameter down to 2 cm. Record the output voltage V_out vs. loop diameter.
+  4. Connector Loss: Connect a 1 m fiber and a 3 m fiber across the Fiber
+     Alignment Kit. Increase the longitudinal separation distance between the
+     two fiber tips and record V_out (in mV) vs. separation distance.
+
+Data to Tabulate (Optical Expt 1):
+  Table A: Bending Loss (f = 1 kHz, V_in = 1.07 V)
+  +-----------------------+-----------------------------------+
+  | Diameter of Loop (cm) | Amplitude of Output Voltage V_out |
+  +-----------------------+-----------------------------------+
+  | 10 cm -> down to 2 cm | (Decreases as diameter shrinks)   |
+  +-----------------------+-----------------------------------+
+
+  Table B: Connector Coupling Loss (f = 1 kHz, V_in = 1.07 V)
+  +--------------------------+-----------------------------------+
+  | Separation Distance (cm) | Amplitude of Output Voltage (mV)  |
+  +--------------------------+-----------------------------------+
+  | 0.1 cm -> increasing     | (Decays exponentially with gap)   |
+  +--------------------------+-----------------------------------+
+
+
+==============================================================================
+ OPTICAL EXPT 2: ATTENUATION MEASUREMENT OF FIBER
+==============================================================================
+
+Steps to perform (from Record Page 60):
+  1. Set switch SW8 to Analog mode and connect Manchester coding shorting
+     links.
+  2. Apply a 1 Vp-p, 10 kHz sine wave at input P_11.
+  3. Connect the L_1 = 1 m optical fiber cable and measure output voltage V_1
+     on the CRO for different input voltages V_in (1 V to 5 V).
+  4. Replace with the L_2 = 3 m (or 2 m) optical fiber cable and measure V_2.
+  5. Compute attenuation alpha:
+       alpha (Np/m) = ln(V_1 / V_2) / (L_2 - L_1)
+       alpha (dB/m) = 8.686 * alpha (Np/m)
+
+Data to Tabulate (Optical Expt 2):
+  +--------------------+------------------------+------------------------+------------------+------------------+
+  | Input Voltage V_in | Output V_out (L1 = 1m) | Output V_out (L2 = 3m) | Attenuation      | Attenuation      |
+  | (V)                | V_1 (V)                | V_2 (V)                | (Np/m)           | (dB/m)           |
+  +--------------------+------------------------+------------------------+------------------+------------------+
+  | 1 V to 5 V         | (Higher voltage)       | (Lower voltage)        | ln(V1/V2)/(L2-L1)| 8.686 * alpha_Np |
+  +--------------------+------------------------+------------------------+------------------+------------------+
+
+
+==============================================================================
+ OPTICAL EXPT 3: NUMERICAL APERTURE (NA) DETERMINATION
+==============================================================================
+
+Steps to perform (from Record Page 63-65):
+  1. Connect the optical fiber cable to the LED source (Optical TX2) and mount
+     the output tip facing the graduated screen at distance d (cm).
+  2. Measure the horizontal diameter (AB) and vertical diameter (CD) of the
+     projected circular red light spot on the screen.
+  3. Compute mean spot radius: x = (AB + CD) / 4.
+  4. Calculate Numerical Aperture:
+       NA = sin(theta_a) = x / sqrt(x^2 + d^2)
+  5. Repeat for multiple screen distances d.
+
+Data to Tabulate (Optical Expt 3):
+  +------------------+-------------+-------------+-------------------+--------------------+
+  | Screen Distance  | Spot Axis   | Spot Axis   | Mean Radius       | Numerical Aperture |
+  | d (cm)           | AB (cm)     | CD (cm)     | x = (AB+CD)/4 (cm)| NA = x/sqrt(x^2+d^2|
+  +------------------+-------------+-------------+-------------------+--------------------+
+  | e.g., 1, 2, 3 cm | (Measured)  | (Measured)  | (Proportional to d| (~Constant, e.g.0.5|
+  +------------------+-------------+-------------+-------------------+--------------------+
+
+
+==============================================================================
+ OPTICAL EXPT 4: STUDY OF LP MODES IN STEP/GRADED INDEX FIBER
+==============================================================================
+
+Steps to perform (from Record Pages 66-68):
+  1. Mount the 633 nm He-Ne laser source and laser-to-fiber coupler on the
+     optical breadboard.
+  2. Align the laser beam into the coupler lens using the 4 adjustment screws
+     until the back-reflected spot re-enters the laser exit hole.
+  3. Couple the multimode patch cord and observe the multi-lobe mode pattern
+     on the opaque screen; then swap with the single-mode fiber patch cord.
+  4. Observe and sketch the irradiance patterns of low-order Linearly
+     Polarized modes: LP_01 (1 central spot), LP_11 (2 lobes), LP_21 (4 lobes),
+     and LP_02 (central spot surrounded by a ring).
+  * Key Result to Record: V-number = 4.91; Total number of modes M = 12.
+
+
+==============================================================================
+ OPTICAL EXPT 5: FIBER OPTIC ANALOG AND DIGITAL LINK
+==============================================================================
+
+Steps to perform (from Record Pages 69-71):
+  1. Keep power OFF, set jumpers JP1 and switch SW1 to Analog (or Digital),
+     and set laser intensity pot P_5 fully anticlockwise.
+  2. Analog Link: Connect signal generator (1 Vp-p sine wave) to ANALOG IN,
+     connect the 1310 nm fiber between TX and RX, adjust P_5, and sweep
+     input frequency from 1 kHz to 600 kHz. Record V_out and Gain =
+     20*log10(V_out / V_in) to find the 3 dB bandwidth from the gain-frequency
+     graph.
+  3. Digital Link: Switch SW1 to Digital, feed a TTL square wave to BUFFER IN,
+     and measure V_pp, T_ON (us), and T_OFF (us) at TTL OUT for the clock
+     (CLK), data signal without noise, and data signal with noise.
+
+Data to Tabulate (Optical Expt 5):
+  Table A: Analog Link Frequency Response (V_in = 1 V)
+  +-----------------------+------------------------+-------------------------------+
+  | Input Frequency (kHz) | Output Voltage V_out(V)| Gain (dB) = 20*log10(Vout/Vin)|
+  +-----------------------+------------------------+-------------------------------+
+  | 1, 50, 90, 150, 200,  | (Constant in midband,  | (Drops by 3 dB at cutoff      |
+  | 300, 600 kHz          |  drops at low/cutoff f)|  frequency f_3dB)             |
+  +-----------------------+------------------------+-------------------------------+
+
+  Table B: Digital Link Timing Table
+  +-----------------------+----------------+---------------+---------------+
+  | Signal Type           | Amplitude V_pp | Pulse Width   | Space Width   |
+  |                       | (V)            | T_ON (us)     | T_OFF (us)    |
+  +-----------------------+----------------+---------------+---------------+
+  | CLK                   | (Measured V)   | (Measured us) | (Measured us) |
+  | DS without noise      | (Measured V)   | (Measured us) | (Measured us) |
+  | DS with noise         | (Measured V)   | (Measured us) | (Measured us) |
+  +-----------------------+----------------+---------------+---------------+
+
+==============================================================================
+ END OF CHEAT SHEET
+==============================================================================
