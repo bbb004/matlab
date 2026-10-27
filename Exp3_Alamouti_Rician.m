@@ -1,39 +1,174 @@
-% EXP 3: Alamouti 2x1 / 2x2 over a Rician channel
-% Requires Communications Toolbox: pskmod, pskdemod, berfading, biterr
-clc; clear; close all; rng(1);
-Eb=0:10; Ks=[4 .6]; Ms=[4 8]; N=40000; % CHANGE THE K VALUE HERE ACCORDING TO QUESTION
-for ki=1:2
-    K=Ks(ki); figure; hold on;
-    for nr=1:2
-        for mi=1:2
-            M=Ms(mi); b=log2(M); sim=zeros(size(Eb));
-            for j=1:numel(Eb)
-                q=randi([0 M-1],2*N,1); s=pskmod(q,M,0,'gray');
-                s1=s(1:2:end); s2=s(2:2:end);
-                u=zeros(N,1); v=zeros(N,1);
-                h=(sqrt(K)+(randn(nr,2,N)+1i*randn(nr,2,N))/sqrt(2))/sqrt(K+1);
-                n0=1/(b*10^(Eb(j)/10));
-                for r=1:nr
-                    h1=reshape(h(r,1,:),N,1); h2=reshape(h(r,2,:),N,1);
-                    y1=(h1.*s1+h2.*s2)/sqrt(2)+sqrt(n0/2)*(randn(N,1)+1i*randn(N,1));
-                    y2=(-h1.*conj(s2)+h2.*conj(s1))/sqrt(2)+sqrt(n0/2)*(randn(N,1)+1i*randn(N,1));
-                    u=u+conj(h1).*y1+h2.*conj(y2);
-                    v=v+conj(h2).*y1-h1.*conj(y2);
-                end
-                dec=pskdemod(reshape([u.';v.'],[],1),M,0,'gray');
-                sim(j)=biterr(q,dec,b)/(2*N*b);
+clear;
+close all;
+clc;
+
+%% Simulation Parameters
+snapshots = 100000;                 % Must be even
+if mod(snapshots,2)~=0
+    snapshots = snapshots + 1;
+end
+
+EbNo = 0:10;
+K = [4.0; 0.6];                     % Rician K-factor
+M = [4; 8];                         % PSK orders
+
+Mt = 2;                             % Transmit antennas
+Mr = [1;2];                         % Receive antennas
+
+%% OSTBC Objects
+ostbcEnc = comm.OSTBCEncoder( ...
+    'NumTransmitAntennas',Mt);
+
+ric_ber = zeros(length(EbNo),length(M),length(K),length(Mr));
+sum_BER = zeros(length(EbNo),length(M),length(K),length(Mr));
+
+%% Main Simulation
+for mr = 1:length(Mr)
+
+    ostbcComb = comm.OSTBCCombiner( ...
+        'NumTransmitAntennas',Mt,...
+        'NumReceiveAntennas',Mr(mr));
+
+    H = zeros(Mr(mr),Mt,snapshots);
+    ric_msg = zeros(snapshots,Mr(mr));
+
+    for k = 1:length(K)
+
+        mu = sqrt(K(k)/(K(k)+1));
+        s = sqrt(1/(K(k)+1));
+
+        for m = 1:length(M)
+
+            %% Theoretical BER
+            ric_ber(:,m,k,mr) = berfading( ...
+                EbNo,...
+                'psk',...
+                M(m),...
+                Mr(mr)*Mt,...
+                K(k));
+
+            %% Generate Message
+            message = randi([0 M(m)-1],snapshots,1);
+
+            %% PSK Modulation
+            mod_msg = pskmod(message,M(m),0,'gray');
+
+            Es = 1;
+
+            %% Alamouti Encoding
+            alam_msg = step(ostbcEnc,mod_msg);
+
+            %% Rician Channel
+            h = mu + s/sqrt(2)*( ...
+                randn(Mr(mr),Mt,snapshots/2) + ...
+                1i*randn(Mr(mr),Mt,snapshots/2));
+
+            H(:,:,1:2:end-1) = h;
+            H(:,:,2:2:end) = h;
+
+            pathGainself = permute(H,[3 2 1]);
+
+            %% Channel Transmission
+            for q = 1:snapshots
+                ric_msg(q,:) = ( ...
+                    sqrt(Es/Mt) * ...
+                    H(:,:,q) * ...
+                    alam_msg(q,:).' ...
+                    ).';
             end
-            a=(nr-1)*2+mi;
-            pSim(a)=semilogy(Eb,sim,'o-','LineWidth',1.1);
-            pTh(a)=semilogy(Eb,berfading(Eb,'psk',M,2*nr,K),'-');
+
+            %% BER Simulation
+            BER = zeros(100,length(EbNo));
+
+            snr = EbNo + 10*log10(log2(M(m)));
+
+            for c = 1:100
+
+                for jj = 1:length(EbNo)
+
+                    noisy_mod = awgn( ...
+                        ric_msg,...
+                        snr(jj),...
+                        'measured',...
+                        'dB');
+
+                    decodeData = step( ...
+                        ostbcComb,...
+                        noisy_mod,...
+                        pathGainself);
+
+                    demod_msg = pskdemod( ...
+                        decodeData,...
+                        M(m),...
+                        0,...
+                        'gray');
+
+                    [~,BER(c,jj)] = biterr(message,demod_msg);
+
+                end
+
+            end
+
+            sum_BER(:,m,k,mr) = mean(BER,1).';
+
         end
     end
-    set(gca,'YScale','log'); grid on;
-    title(['Rician model (K = ' num2str(K) ')']);
-    xlabel('EbNo (dB)'); ylabel('BER');
-    legend([pSim(1:2) pTh(1:2) pSim(3:4) pTh(3:4)], ...
-        'QPSK(simulated) 2x1','8-PSK(simulated) 2x1', ...
-        'QPSK(theory) 2x1','8-PSK(theory) 2x1', ...
-        'QPSK(simulated) 2x2','8-PSK(simulated) 2x2', ...
-        'QPSK(theory) 2x2','8-PSK(theory) 2x2');
 end
+
+%% Figure 1 : K = 4.0
+figure(1)
+
+semilogy(EbNo,sum_BER(:,1,1,1),'r-o',...
+         EbNo,sum_BER(:,2,1,1),'g-o',...
+         EbNo,ric_ber(:,1,1,1),'r-',...
+         EbNo,ric_ber(:,2,1,1),'g-',...
+         EbNo,sum_BER(:,1,1,2),'b-o',...
+         EbNo,sum_BER(:,2,1,2),'y-o',...
+         EbNo,ric_ber(:,1,1,2),'b-',...
+         EbNo,ric_ber(:,2,1,2),'y-',...
+         'LineWidth',1.5)
+
+grid on
+xlabel('Eb/No (dB)')
+ylabel('BER')
+title('Rician Fading Channel (K = 4.0)')
+
+legend(...
+'QPSK (Sim) 2x1',...
+'8PSK (Sim) 2x1',...
+'QPSK (Theory) 2x1',...
+'8PSK (Theory) 2x1',...
+'QPSK (Sim) 2x2',...
+'8PSK (Sim) 2x2',...
+'QPSK (Theory) 2x2',...
+'8PSK (Theory) 2x2',...
+'Location','southwest')
+
+%% Figure 2 : K = 0.6
+figure(2)
+
+semilogy(EbNo,sum_BER(:,1,2,1),'r-o',...
+         EbNo,sum_BER(:,2,2,1),'g-o',...
+         EbNo,ric_ber(:,1,2,1),'r-',...
+         EbNo,ric_ber(:,2,2,1),'g-',...
+         EbNo,sum_BER(:,1,2,2),'b-o',...
+         EbNo,sum_BER(:,2,2,2),'y-o',...
+         EbNo,ric_ber(:,1,2,2),'b-',...
+         EbNo,ric_ber(:,2,2,2),'y-',...
+         'LineWidth',1.5)
+
+grid on
+xlabel('Eb/No (dB)')
+ylabel('BER')
+title('Rician Fading Channel (K = 0.6)')
+
+legend(...
+'QPSK (Sim) 2x1',...
+'8PSK (Sim) 2x1',...
+'QPSK (Theory) 2x1',...
+'8PSK (Theory) 2x1',...
+'QPSK (Sim) 2x2',...
+'8PSK (Sim) 2x2',...
+'QPSK (Theory) 2x2',...
+'8PSK (Theory) 2x2',...
+'Location','southwest')
